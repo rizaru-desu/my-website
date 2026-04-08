@@ -1,0 +1,54 @@
+import { z } from "zod";
+
+export const socialLinkSchema = z.object({
+  label: z
+    .string()
+    .min(2, "Enter a label with at least 2 characters.")
+    .max(24, "Keep the label under 24 characters."),
+  href: z
+    .string()
+    .url("Enter a valid URL.")
+    .max(120, "Keep the URL under 120 characters."),
+});
+
+export const profileSchema = z.object({
+  fullName: z
+    .string()
+    .min(2, "Full name is required.")
+    .max(48, "Keep the name under 48 characters."),
+  headline: z
+    .string()
+    .min(4, "Headline is required.")
+    .max(72, "Keep the headline under 72 characters."),
+  shortIntro: z
+    .string()
+    .min(24, "Short intro should be at least 24 characters.")
+    .max(140, "Short intro should stay under 140 characters."),
+  about: z
+    .string()
+    .min(80, "About section should be at least 80 characters.")
+    .max(480, "About section should stay under 480 characters."),
+  location: z
+    .string()
+    .min(2, "Location is required.")
+    .max(48, "Keep the location under 48 characters."),
+  email: z.string().email("Enter a valid email address."),
+  phone: z
+    .string()
+    .min(8, "Phone number is required.")
+    .max(24, "Keep the phone number under 24 characters."),
+  availability: z
+    .string()
+    .min(4, "Availability is required.")
+    .max(56, "Keep the availability note under 56 characters."),
+  primaryCta: z
+    .string()
+    .min(4, "Primary CTA is required.")
+    .max(40, "Keep the CTA under 40 characters."),
+  socialLinks: z
+    .array(socialLinkSchema)
+    .min(1, "Add at least one social link.")
+    .max(4, "Keep social links to four entries or fewer."),
+});
+
+export type ProfileFormValues = z.infer<typeof profileSchema>;

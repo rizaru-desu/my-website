@@ -88,3 +88,20 @@ model Verification {
 
   @@map("verification")
 }
+
+model VisitorLog {
+  id                   String   @id
+  visitorId            String
+  ipHash               String
+  path                 String
+  referrer             String   @default("direct")
+  referrerSource       String   @default("direct")
+  userAgent            String
+  isUniqueDailyVisitor Boolean  @default(false)
+  visitedAt            DateTime @default(now())
+
+  @@index([visitedAt])
+  @@index([path, visitedAt])
+  @@index([referrerSource, visitedAt])
+  @@index([visitorId, visitedAt])
+}

@@ -102,6 +102,24 @@ export function AdminRoughChart({
       labels: barLikeData.labels,
     };
   }, [data, type]);
+  const linePreviewLabels = useMemo(() => {
+    if (type !== "Line" || !normalized?.labels?.length) {
+      return [];
+    }
+
+    if (normalized.labels.length <= 10) {
+      return normalized.labels;
+    }
+
+    const step = Math.max(1, Math.ceil((normalized.labels.length - 1) / 5));
+
+    return normalized.labels.filter(
+      (_, index) =>
+        index === 0 ||
+        index === normalized.labels.length - 1 ||
+        index % step === 0,
+    );
+  }, [normalized, type]);
 
   useEffect(() => {
     if (!normalized) {
@@ -216,10 +234,10 @@ export function AdminRoughChart({
         <div
           className="grid gap-2"
           style={{
-            gridTemplateColumns: `repeat(${normalized.labels.length}, minmax(0, 1fr))`,
+            gridTemplateColumns: `repeat(${linePreviewLabels.length}, minmax(0, 1fr))`,
           }}
         >
-          {normalized.labels.map((label) => (
+          {linePreviewLabels.map((label) => (
             <div
               key={label}
               className="rounded-[14px] border-[2px] border-ink bg-panel px-2 py-2 text-center text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-ink/62"

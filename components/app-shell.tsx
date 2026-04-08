@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
 import { AdminShell } from "@/components/admin-shell";
+import { PublicVisitorTracker } from "@/components/public-visitor-tracker";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 
@@ -22,6 +23,7 @@ export function AppShell({ children }: AppShellProps) {
     <>
       <SiteHeader />
       <main>{children}</main>
+      <PublicVisitorTracker />
       <SiteFooter />
     </>
   );

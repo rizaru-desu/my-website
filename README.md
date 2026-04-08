@@ -69,7 +69,7 @@ The honest read:
 **Partial / Mock**
 
 - Most non-user CMS sections are currently driven by `mock-content`, default-value files, or local-only state instead of persisted records.
-- Dashboard analytics are present visually, but they currently read mock analytics data and use `rough-viz`, not production analytics pipelines.
+- Dashboard analytics now use live visitor tracking for visitors, traffic sources, and top pages, but message and resume-download analytics are still pending.
 - Resume upload, profile photo upload, and blog/project media handling are UI simulations rather than connected cloud storage flows.
 - Some save flows are intentionally local/editorial rather than true CRUD persistence.
 
@@ -108,19 +108,21 @@ The honest read:
 
 - Prisma currently models auth-related entities: `User`, `Account`, `Session`, `Verification`, and `TwoFactor`.
 - Real backend querying exists for managed admin users through [`lib/admin-users.ts`](lib/admin-users.ts), [`app/api/admin/users/route.ts`](app/api/admin/users/route.ts), and [`app/admin/users/actions.ts`](app/admin/users/actions.ts).
+- Visitor analytics now have a real persistence model and query layer through [`prisma/schema.prisma`](prisma/schema.prisma), [`lib/visitor-analytics.ts`](lib/visitor-analytics.ts), and [`app/api/track/visit/route.ts`](app/api/track/visit/route.ts).
 
 **Partial / Mock**
 
 - The codebase already has schemas, editor defaults, and structured UI for many CMS domains, but most of those domains do not yet persist to Prisma.
 - Some admin pages are already shaped like production features, but they are still acting as local prototypes with realistic data.
+- Visitor analytics use Upstash-backed dedup and Prisma-backed storage, but they currently cover only public page visits, not message or download events.
 
 **Not Yet**
 
-- Prisma content models for profile, projects, skills, education, experience, certificates, blog posts, testimonials, messages, visitor logs, and CV download logs.
+- Prisma content models for profile, projects, skills, education, experience, certificates, blog posts, testimonials, messages, and CV download logs.
 - Full server actions or route handlers for CMS CRUD across those content models.
-- Redis caching, dedup, or rate limiting for public tracking and submission flows.
+- Broader Redis-backed caching, dedup, or rate limiting for message submissions and other public flows.
 - BullMQ or background job infrastructure.
-- Real analytics tracking for visitors, messages, and resume downloads.
+- Real analytics tracking for messages and resume downloads.
 
 ### 5. Platform, SEO, and Ops
 
@@ -149,7 +151,7 @@ If this repo continues toward a production CMS, the highest-value next steps are
 2. Replace mock/local admin save flows with real persisted CRUD.
 3. Connect public forms for messages and testimonials to real backend handlers.
 4. Add real email delivery and file storage.
-5. Add SEO files, analytics tracking, and production monitoring.
+5. Extend live analytics beyond visitors, then add SEO files and production monitoring.
 
 ## Local Setup
 
@@ -182,4 +184,12 @@ Useful verification commands:
 ```bash
 npm run test:2fa-flow
 npm run build
+```
+
+Optional env for live visitor analytics:
+
+```bash
+UPSTASH_REDIS_REST_URL=
+UPSTASH_REDIS_REST_TOKEN=
+ANALYTICS_HASH_SALT=
 ```

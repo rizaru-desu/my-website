@@ -119,21 +119,6 @@ export type AdminActivity = {
   accent: "red" | "blue" | "cream";
 };
 
-export type AdminAnalyticsPoint = {
-  label: string;
-  value: number;
-};
-
-export type AdminAnalyticsSource = {
-  label: string;
-  value: number;
-};
-
-export type AdminAnalyticsPage = {
-  label: string;
-  value: number;
-};
-
 export const profile: Profile = {
   name: "Rizal Achmad",
   role: "Full-Stack Product Engineer",
@@ -675,65 +660,6 @@ export const adminQueue = [
     note: "Two more writing prompts are staged for the next editorial batch.",
   },
 ];
-
-export const adminAnalytics = {
-  visitors: {
-    summary: "18.4k visits",
-    change: "+12% MoM",
-    points: [
-      { label: "Week 1", value: 3200 },
-      { label: "Week 2", value: 3650 },
-      { label: "Week 3", value: 4210 },
-      { label: "Week 4", value: 4980 },
-      { label: "Week 5", value: 5360 },
-    ] satisfies AdminAnalyticsPoint[],
-  },
-  messages: {
-    summary: "43 messages",
-    change: "+6 this week",
-    points: [
-      { label: "Mon", value: 5 },
-      { label: "Tue", value: 7 },
-      { label: "Wed", value: 6 },
-      { label: "Thu", value: 9 },
-      { label: "Fri", value: 8 },
-      { label: "Sat", value: 4 },
-      { label: "Sun", value: 4 },
-    ] satisfies AdminAnalyticsPoint[],
-  },
-  resumeDownloads: {
-    summary: "126 downloads",
-    change: "+18% vs last month",
-    points: [
-      { label: "Jan", value: 18 },
-      { label: "Feb", value: 22 },
-      { label: "Mar", value: 19 },
-      { label: "Apr", value: 24 },
-      { label: "May", value: 21 },
-      { label: "Jun", value: 29 },
-    ] satisfies AdminAnalyticsPoint[],
-  },
-  trafficSources: {
-    summary: "4 core channels",
-    change: "Recruiter-led traffic",
-    sources: [
-      { label: "LinkedIn", value: 42 },
-      { label: "Direct", value: 26 },
-      { label: "Search", value: 19 },
-      { label: "Referrals", value: 13 },
-    ] satisfies AdminAnalyticsSource[],
-  },
-  topPages: {
-    summary: "Homepage leads",
-    change: "Top 4 routes",
-    pages: [
-      { label: "Homepage", value: 6210 },
-      { label: "Projects", value: 4180 },
-      { label: "Resume", value: 2670 },
-      { label: "Blog", value: 1940 },
-    ] satisfies AdminAnalyticsPage[],
-  },
-};
 
 export function getProjectBySlug(slug: string) {
   return projects.find((project) => project.slug === slug);

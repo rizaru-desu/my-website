@@ -10,9 +10,12 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+import { formatAppVersionLabel, getAppVersionInfo } from "@/lib/app-version";
 import { profile } from "@/lib/mock-content";
 
 export function SiteFooter() {
+  const version = getAppVersionInfo();
+
   return (
     <footer className="px-4 pb-10 pt-16 sm:px-6">
       <div className="mx-auto grid w-full max-w-7xl gap-6 rounded-[32px] border-[3px] border-ink bg-ink px-6 py-8 text-panel shadow-[8px_8px_0_var(--accent-red)] md:grid-cols-[1.2fr_auto_0.8fr] md:px-8">
@@ -27,6 +30,9 @@ export function SiteFooter() {
             This experience brings the public portfolio and the internal
             workspace into one bold system with a consistent editorial voice.
           </p>
+          <div className="inline-flex w-fit items-center rounded-full border border-panel/25 bg-white/8 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-panel/72">
+            Release {formatAppVersionLabel(version)}
+          </div>
           <Dialog>
             <DialogTrigger variant="blue" size="sm">
               Design Notes
@@ -76,6 +82,12 @@ export function SiteFooter() {
             ))}
           </div>
           <p className="text-sm text-panel/70">{profile.email}</p>
+          <a
+            href="/api/version"
+            className="inline-flex w-fit text-xs font-semibold uppercase tracking-[0.22em] text-panel/58 underline decoration-panel/25 underline-offset-4 transition hover:text-panel/82"
+          >
+            Runtime Version
+          </a>
         </div>
       </div>
     </footer>

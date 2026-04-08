@@ -26,6 +26,13 @@ The honest read:
 | Charts | `rough-viz` for the current admin analytics presentation |
 | Testing | Node test runner for auth / 2FA flow assertions |
 
+## Versioning
+
+- The source version lives in [`package.json`](package.json).
+- GitHub-facing releases use SemVer tags in the `vX.Y.Z` format.
+- Runtime version metadata is exposed at [`/api/version`](app/api/version/route.ts).
+- Human-readable release notes live in [`CHANGELOG.md`](CHANGELOG.md).
+
 ## Status Legend
 
 - `Done` = implemented in codebase with a real working flow or real backend support

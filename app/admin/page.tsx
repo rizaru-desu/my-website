@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 
@@ -5,6 +6,7 @@ import { DashboardAnalytics } from "./dashboard-analytics";
 import { Badge } from "@/components/ui/badge";
 import { EditorialCard } from "@/components/ui/editorial-card";
 import { SectionShell } from "@/components/ui/section-shell";
+import { auth } from "@/lib/auth";
 import { getDashboardMessageAnalytics } from "@/lib/messages";
 import {
   adminActivity,
@@ -16,7 +18,12 @@ import {
 export default async function AdminDashboardPage() {
   noStore();
 
+  const requestHeaders = await headers();
+  const session = await auth.api.getSession({
+    headers: requestHeaders,
+  });
   const messageAnalytics = await getDashboardMessageAnalytics();
+  const canManageResume = session?.user?.role === "architect";
   const syncedMetrics = adminMetrics.map((metric) =>
     metric.label === "Messages Flagged"
       ? {
@@ -77,7 +84,7 @@ export default async function AdminDashboardPage() {
         ))}
       </section>
 
-      <DashboardAnalytics />
+      <DashboardAnalytics canManageResume={canManageResume} />
 
       <SectionShell
         label="Collections"

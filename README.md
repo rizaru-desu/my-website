@@ -23,7 +23,7 @@ The honest read:
 | Auth | Better Auth + Prisma adapter + Argon2 |
 | Database | PostgreSQL via Prisma |
 | Client data | TanStack Query + TanStack Form |
-| Charts | `rough-viz` for the current admin analytics presentation |
+| Charts | `Recharts` for the current admin analytics presentation |
 | Testing | Node test runner for auth / 2FA flow assertions |
 
 ## Versioning

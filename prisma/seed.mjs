@@ -11,9 +11,131 @@ const email = process.env.SEED_USER_EMAIL?.trim() || fallbackEmail;
 const password = process.env.SEED_USER_PASSWORD || fallbackPassword;
 const name = process.env.SEED_USER_NAME || "Rizaru Desu";
 const role = process.env.SEED_USER_ROLE || "architect";
-const username =
+const requestedUsername =
   process.env.SEED_USER_USERNAME ||
   email?.split("@")[0]?.toLowerCase().replace(/[^a-z0-9_]/g, "_");
+const testimonialSeeds = [
+  {
+    id: "testimonial-maya-hartono",
+    name: "Maya Hartono",
+    role: "Lead Recruiter",
+    company: "Finch Labs",
+    message:
+      "Rizal presents work the way strong candidates actually need to: clear outcomes first, process second, and personality throughout.",
+    rating: 5,
+    relation: "CLIENT",
+    status: "APPROVED",
+    featured: true,
+  },
+  {
+    id: "testimonial-arif-nugraha",
+    name: "Arif Nugraha",
+    role: "Product Manager",
+    company: "Studio North",
+    message:
+      "He can take a visually ambitious direction and turn it into a UI system that still feels practical to ship.",
+    rating: 5,
+    relation: "COLLEAGUE",
+    status: "APPROVED",
+    featured: true,
+  },
+  {
+    id: "testimonial-lina-pratama",
+    name: "Lina Pratama",
+    role: "Design Lead",
+    company: "Northstar SaaS",
+    message:
+      "Rizal brought unusual clarity to the work. The visual direction was bold, but the delivery always stayed practical and easy to review.",
+    rating: 5,
+    relation: "COLLEAGUE",
+    status: "APPROVED",
+    featured: true,
+  },
+  {
+    id: "testimonial-bima-santoso",
+    name: "Bima Santoso",
+    role: "Engineering Manager",
+    company: "Atlas Logistics",
+    message:
+      "He moves quickly without making the team feel rushed. Decisions are documented, tradeoffs are visible, and execution holds up under detail.",
+    rating: 5,
+    relation: "COLLEAGUE",
+    status: "APPROVED",
+    featured: true,
+  },
+  {
+    id: "testimonial-nadia-ramadhani",
+    name: "Nadia Ramadhani",
+    role: "Product Designer",
+    company: "Signal Commerce",
+    message:
+      "Working with Rizal felt collaborative from day one. He translated rough product thinking into UI that looked sharp and still made engineering sense.",
+    rating: 4,
+    relation: "COLLEAGUE",
+    status: "APPROVED",
+    featured: false,
+  },
+  {
+    id: "testimonial-ferdiansyah-akbar",
+    name: "Ferdiansyah Akbar",
+    role: "Founder",
+    company: "Harbor Studio",
+    message:
+      "He understands that portfolio work is not just about visuals. The structure, pacing, and proof all helped communicate credibility much faster.",
+    rating: 4,
+    relation: "CLIENT",
+    status: "APPROVED",
+    featured: false,
+  },
+  {
+    id: "testimonial-sri-wahyuni",
+    name: "Sri Wahyuni",
+    role: "Talent Partner",
+    company: "Meridian Labs",
+    message:
+      "This note is already strong, but I wanted to submit a more polished version after internal review because it reflects the collaboration better.",
+    rating: 4,
+    relation: "CLIENT",
+    status: "PENDING",
+    featured: false,
+  },
+  {
+    id: "testimonial-raka-mahesa",
+    name: "Raka Mahesa",
+    role: "Frontend Engineer",
+    company: "Studio North",
+    message:
+      "Rizal set a high bar for presentation quality while still keeping implementation constraints visible. The process felt organized and calm.",
+    rating: 5,
+    relation: "MENTOR",
+    status: "PENDING",
+    featured: false,
+  },
+  {
+    id: "testimonial-dewi-amaranti",
+    name: "Dewi Amaranti",
+    role: "Operations Lead",
+    company: "Tidal Works",
+    message:
+      "The collaboration was strong, but this draft includes too much internal wording and should be revised before it becomes public-facing proof.",
+    rating: 3,
+    relation: "CLIENT",
+    status: "REJECTED",
+    featured: false,
+  },
+  {
+    id: "testimonial-eko-prabowo",
+    name: "Eko Prabowo",
+    role: "Independent Consultant",
+    company: "Nusantara Digital",
+    message:
+      "I appreciated the energy and the ambition here, but the current wording still feels too vague to serve as a credible public testimonial.",
+    rating: 3,
+    relation: "OTHER",
+    status: "REJECTED",
+    featured: false,
+  },
+];
 
 if (!databaseUrl) {
   throw new Error("DATABASE_URL is required.");
@@ -24,6 +146,37 @@ const adapter = new PrismaPg({
 });
 
 const prisma = new PrismaClient({ adapter });
+
+function normalizeSeedUsername(value) {
+  const normalized = value?.toLowerCase().replace(/[^a-z0-9_]/g, "_").replace(/_+/g, "_");
+  const trimmed = normalized?.replace(/^_+|_+$/g, "") ?? "";
+
+  return trimmed || "admin";
+}
+
+async function resolveAvailableUsername(preferredUsername, excludeUserId) {
+  const baseUsername = normalizeSeedUsername(preferredUsername);
+
+  for (let index = 0; index < 10_000; index += 1) {
+    const candidate = index === 0 ? baseUsername : `${baseUsername}_${index}`;
+    const existingByUsername = await prisma.user.findFirst({
+      select: {
+        id: true,
+      },
+      where: {
+        username: candidate,
+      },
+    });
+
+    if (!existingByUsername || existingByUsername.id === excludeUserId) {
+      return candidate;
+    }
+  }
+
+  throw new Error(
+    `Could not resolve an available username for base "${baseUsername}".`,
+  );
+}
 
 async function upsertCredentialAccount() {
   const normalizedEmail = email.toLowerCase();
@@ -36,6 +189,11 @@ async function upsertCredentialAccount() {
       accounts: true,
     },
   });
+
+  const resolvedUsername = await resolveAvailableUsername(
+    requestedUsername,
+    existingUser?.id,
+  );
 
   if (!existingUser) {
     const createdUser = await prisma.user.create({
@@ -50,8 +208,8 @@ async function upsertCredentialAccount() {
         banned: false,
         banReason: null,
         banExpires: null,
-        username,
-        displayUsername: username,
+        username: resolvedUsername,
+        displayUsername: resolvedUsername,
       },
     });
 
@@ -70,6 +228,7 @@ async function upsertCredentialAccount() {
       status: "created",
       userId: createdUser.id,
       email: createdUser.email,
+      username: createdUser.username,
     };
   }
 
@@ -83,8 +242,8 @@ async function upsertCredentialAccount() {
       banned: false,
       banReason: null,
       banExpires: null,
-      username: existingUser.username || username,
-      displayUsername: existingUser.displayUsername || username,
+      username: existingUser.username || resolvedUsername,
+      displayUsername: existingUser.displayUsername || existingUser.username || resolvedUsername,
     },
   });
 
@@ -106,6 +265,7 @@ async function upsertCredentialAccount() {
       status: "updated",
       userId: existingUser.id,
       email: normalizedEmail,
+      username: existingUser.username || resolvedUsername,
     };
   }
 
@@ -124,7 +284,40 @@ async function upsertCredentialAccount() {
     status: "linked-credential",
     userId: existingUser.id,
     email: normalizedEmail,
+    username: existingUser.username || resolvedUsername,
   };
+}
+
+async function upsertTestimonialSeeds() {
+  const now = new Date();
+
+  for (const testimonial of testimonialSeeds) {
+    const isApproved = testimonial.status === "APPROVED";
+    const shouldBeFeatured = isApproved ? testimonial.featured : false;
+    const reviewedAt = testimonial.status === "PENDING" ? null : now;
+
+    await prisma.testimonial.upsert({
+      where: {
+        id: testimonial.id,
+      },
+      create: {
+        ...testimonial,
+        featured: shouldBeFeatured,
+        reviewedAt,
+      },
+      update: {
+        company: testimonial.company,
+        featured: shouldBeFeatured,
+        message: testimonial.message,
+        name: testimonial.name,
+        rating: testimonial.rating,
+        relation: testimonial.relation,
+        reviewedAt,
+        role: testimonial.role,
+        status: testimonial.status,
+      },
+    });
+  }
 }
 
 try {
@@ -145,6 +338,7 @@ try {
   }
 
   const result = await upsertCredentialAccount();
+  await upsertTestimonialSeeds();
   console.log(JSON.stringify(result, null, 2));
 } finally {
   await prisma.$disconnect();

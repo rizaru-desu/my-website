@@ -1,16 +1,25 @@
 import { Prisma } from "@prisma/client";
 
-export function isMissingMessageTableError(error: unknown) {
+function isMissingRelationError(error: unknown, relationName: string) {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     return error.code === "P2021";
   }
 
   return (
     error instanceof Error &&
-    /42P01|relation .*message.* does not exist|table .*message.* does not exist/i.test(
-      error.message,
-    )
+    new RegExp(
+      `42P01|relation .*${relationName}.* does not exist|table .*${relationName}.* does not exist`,
+      "i",
+    ).test(error.message)
   );
+}
+
+export function isMissingMessageTableError(error: unknown) {
+  return isMissingRelationError(error, "message");
+}
+
+export function isMissingTestimonialTableError(error: unknown) {
+  return isMissingRelationError(error, "testimonial");
 }
 
 export function isPrismaConnectionError(error: unknown) {

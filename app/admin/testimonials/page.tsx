@@ -1,11 +1,28 @@
+import { headers } from "next/headers";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { EditorialCard } from "@/components/ui/editorial-card";
+import {
+  AdminTestimonialsAccessError,
+  getAdminTestimonialsContext,
+} from "@/lib/testimonials";
 
 import { TestimonialsCms } from "./testimonials-cms";
 
-export default function AdminTestimonialsPage() {
+export default async function AdminTestimonialsPage() {
+  const requestHeaders = await headers();
+  try {
+    await getAdminTestimonialsContext(requestHeaders);
+  } catch (error) {
+    if (error instanceof AdminTestimonialsAccessError && error.status === 401) {
+      redirect("/login?redirectTo=%2Fadmin%2Ftestimonials");
+    }
+
+    redirect("/admin");
+  }
+
   return (
     <div className="space-y-8">
       <section className="surface-panel surface-panel-blue">

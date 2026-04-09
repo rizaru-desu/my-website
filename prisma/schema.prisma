@@ -120,8 +120,42 @@ model Message {
   @@map("message")
 }
 
+model Testimonial {
+  id        String              @id @default(cuid())
+  name      String
+  role      String
+  company   String?
+  message   String
+  rating    Int
+  relation  TestimonialRelation
+  status    TestimonialStatus   @default(PENDING)
+  featured  Boolean             @default(false)
+  reviewedAt DateTime?
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  @@index([status])
+  @@index([featured])
+  @@index([status, featured])
+  @@index([createdAt])
+  @@map("testimonial")
+}
+
 enum MessageStatus {
   UNREAD
   READ
   ARCHIVED
+}
+
+enum TestimonialStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum TestimonialRelation {
+  CLIENT
+  COLLEAGUE
+  MENTOR
+  OTHER
 }

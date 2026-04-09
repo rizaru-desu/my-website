@@ -4,18 +4,20 @@ import { skillSeedRecords } from "@/app/admin/skills/skill.default-values";
 import { BlogCard } from "@/components/blog-card";
 import { ContactSection } from "@/components/contact-section";
 import { ProjectCard } from "@/components/project-card";
+import { TestimonialCarousel } from "@/components/testimonial-carousel";
 import { Badge } from "@/components/ui/badge";
 import { EditorialCard } from "@/components/ui/editorial-card";
 import { SectionShell } from "@/components/ui/section-shell";
 import { StatTile } from "@/components/ui/stat-tile";
+import { getPublicHomepageTestimonials } from "@/lib/testimonials";
 import {
   featuredPosts,
   featuredProjects,
   profile,
-  testimonials,
 } from "@/lib/mock-content";
 
-export default function Home() {
+export default async function Home() {
+  const testimonials = await getPublicHomepageTestimonials();
   const groupedSkills = Array.from(
     skillSeedRecords.reduce((map, skill) => {
       const existingGroup = map.get(skill.values.category) ?? [];
@@ -284,30 +286,50 @@ export default function Home() {
           label="Proof"
           title="Testimonials shaped like sharp recommendations."
           description="These quotes show how social proof can sit inside the same visual language without becoming an afterthought."
-          contentClassName="grid gap-6 lg:grid-cols-2"
+          contentClassName="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]"
         >
-          {testimonials.map((testimonial, index) => (
-            <EditorialCard
-              key={testimonial.name}
-              accent={index % 2 === 0 ? "red" : "blue"}
-              className="space-y-5"
-            >
-              <p className="font-display text-4xl uppercase leading-none text-ink">
-                “
+          <TestimonialCarousel testimonials={testimonials} />
+          <EditorialCard accent="blue" className="flex h-full flex-col gap-5">
+            <div className="space-y-3">
+              <Badge variant="blue">Leave a Testimonial</Badge>
+              <h3 className="font-display text-4xl uppercase leading-none text-ink">
+                Use the dedicated page for a cleaner, more focused submission flow.
+              </h3>
+              <p className="text-sm leading-7 text-ink/76">
+                The homepage now keeps proof browsing lightweight, while the full
+                testimonial form lives on its own route with more context and less
+                distraction.
               </p>
-              <p className="text-base leading-8 text-ink/80 sm:text-lg">
-                {testimonial.quote}
-              </p>
-              <div className="border-t-[3px] border-dashed border-ink/25 pt-4">
-                <p className="font-display text-2xl uppercase leading-none text-ink">
-                  {testimonial.name}
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-[22px] border-[3px] border-ink bg-white/75 px-4 py-4 shadow-[5px_5px_0_var(--ink)]">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-ink/55">
+                  Better For
                 </p>
-                <p className="mt-2 text-sm font-semibold uppercase tracking-[0.2em] text-ink/65">
-                  {testimonial.role}
+                <p className="mt-3 font-display text-2xl uppercase leading-none text-ink">
+                  Shared links and calmer form filling
                 </p>
               </div>
-            </EditorialCard>
-          ))}
+              <div className="rounded-[22px] border-[3px] border-ink bg-white/75 px-4 py-4 shadow-[5px_5px_0_var(--ink)]">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-ink/55">
+                  Submission Path
+                </p>
+                <p className="mt-3 font-display text-2xl uppercase leading-none text-ink">
+                  Public page to moderation queue
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-auto flex flex-wrap gap-4">
+              <Link href="/testimonials" className="button-link button-link-blue">
+                Open Testimonial Form
+              </Link>
+              <Link href="/projects" className="button-link button-link-muted">
+                Browse Work First
+              </Link>
+            </div>
+          </EditorialCard>
         </SectionShell>
 
         <ContactSection />

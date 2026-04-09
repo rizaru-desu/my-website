@@ -59,6 +59,19 @@ export function AdminRoughChart({
     remove?: () => void;
     responsive?: boolean;
   } | null>(null);
+  const isZeroOnlyLine = useMemo(() => {
+    if (type !== "Line") {
+      return false;
+    }
+
+    const lineData = data as LineData;
+
+    if (!lineData.points?.length) {
+      return false;
+    }
+
+    return lineData.points.every((point) => point.y === 0);
+  }, [data, type]);
   const normalized = useMemo(() => {
     if (type === "Line") {
       const lineData = data as LineData;
@@ -73,6 +86,10 @@ export function AdminRoughChart({
       if (
         values.some((value) => typeof value !== "number" || Number.isNaN(value))
       ) {
+        return null;
+      }
+
+      if (values.every((value) => value === 0)) {
         return null;
       }
 
@@ -221,7 +238,9 @@ export function AdminRoughChart({
     return (
       <div className="flex h-[300px] items-center justify-center rounded-[22px] border-[3px] border-dashed border-ink bg-white/70 px-6 text-center shadow-[5px_5px_0_var(--ink)]">
         <p className="max-w-sm text-sm font-semibold uppercase tracking-[0.16em] text-ink/58">
-          No chart data available for this panel yet.
+          {isZeroOnlyLine
+            ? "Trend will appear after the first tracked visitors are recorded."
+            : "No chart data available for this panel yet."}
         </p>
       </div>
     );

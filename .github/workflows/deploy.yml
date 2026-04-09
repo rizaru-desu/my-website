@@ -1,0 +1,100 @@
+name: Deploy Production
+
+# Required repository secrets:
+# DEPLOY_HOST
+# DEPLOY_PORT
+# DEPLOY_USER
+# DEPLOY_PATH
+# DEPLOY_SSH_KEY
+#
+# Optional repository variable:
+# KEEP_RELEASES
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      NODE_VERSION: "20"
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+      KEEP_RELEASES: ${{ vars.KEEP_RELEASES }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compute release version
+        id: release_meta
+        run: |
+          set -euo pipefail
+          APP_VERSION="$(node -p "require('./package.json').version")"
+          SHORT_SHA="${GITHUB_SHA::7}"
+          RELEASE_VERSION="v${APP_VERSION}-build.${GITHUB_RUN_NUMBER}-${SHORT_SHA}"
+          RELEASE_NAME="release-${RELEASE_VERSION}"
+          ARTIFACT_NAME="next-standalone-${RELEASE_VERSION}.tar.gz"
+          BUILD_TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+          {
+            echo "app_version=${APP_VERSION}"
+            echo "short_sha=${SHORT_SHA}"
+            echo "release_version=${RELEASE_VERSION}"
+            echo "release_name=${RELEASE_NAME}"
+            echo "artifact_name=${ARTIFACT_NAME}"
+            echo "build_timestamp=${BUILD_TIMESTAMP}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build standalone release artifact
+        env:
+          RELEASE_VERSION: ${{ steps.release_meta.outputs.release_version }}
+          GIT_SHA: ${{ github.sha }}
+          BUILD_TIMESTAMP: ${{ steps.release_meta.outputs.build_timestamp }}
+        run: npm run package:release -- "${{ steps.release_meta.outputs.artifact_name }}" "${{ steps.release_meta.outputs.release_version }}"
+
+      - name: Prepare SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "${DEPLOY_PORT:-22}" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload release artifact
+        run: |
+          set -euo pipefail
+          ssh -p "${DEPLOY_PORT:-22}" "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p '$DEPLOY_PATH/releases' '$DEPLOY_PATH/shared' '$DEPLOY_PATH/incoming'"
+          scp -P "${DEPLOY_PORT:-22}" "build/${{ steps.release_meta.outputs.artifact_name }}" "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/incoming/${{ steps.release_meta.outputs.artifact_name }}"
+
+      - name: Activate release
+        run: |
+          set -euo pipefail
+          ssh -p "${DEPLOY_PORT:-22}" "$DEPLOY_USER@$DEPLOY_HOST" \
+            "set -euo pipefail && \
+            RELEASE_DIR='$DEPLOY_PATH/releases/${{ steps.release_meta.outputs.release_name }}' && \
+            mkdir -p \"\$RELEASE_DIR\" && \
+            tar -xzf '$DEPLOY_PATH/incoming/${{ steps.release_meta.outputs.artifact_name }}' -C \"\$RELEASE_DIR\" && \
+            chmod +x \"\$RELEASE_DIR/scripts/deploy/install-release.sh\" && \
+            KEEP_RELEASES='${KEEP_RELEASES:-5}' \"\$RELEASE_DIR/scripts/deploy/install-release.sh\" '$DEPLOY_PATH' '${{ steps.release_meta.outputs.release_name }}' && \
+            rm -f '$DEPLOY_PATH/incoming/${{ steps.release_meta.outputs.artifact_name }}'"

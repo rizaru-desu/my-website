@@ -31,6 +31,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
+        suppressHydrationWarning
         className={`${archivoBlack.variable} ${spaceGrotesk.variable} page-shell antialiased`}
       >
         <QueryProvider>

@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { skillSeedRecords } from "@/app/admin/skills/skill.default-values";
 import { BlogCard } from "@/components/blog-card";
+import { ContactSection } from "@/components/contact-section";
 import { ProjectCard } from "@/components/project-card";
 import { Badge } from "@/components/ui/badge";
 import { EditorialCard } from "@/components/ui/editorial-card";
@@ -308,6 +309,8 @@ export default function Home() {
             </EditorialCard>
           ))}
         </SectionShell>
+
+        <ContactSection />
 
         <section className="surface-panel surface-panel-red paper-grid overflow-hidden">
           <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">

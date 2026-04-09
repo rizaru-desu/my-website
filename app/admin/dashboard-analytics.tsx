@@ -103,14 +103,14 @@ export async function DashboardAnalytics() {
 
         <AnalyticsPanel
           title="Contact messages trend"
-          description="Inbound contact analytics will go live after the public message form is persisted server-side."
+          description="Inbound message persistence is now wired, but trend aggregation still needs its own analytics query layer."
           summary="Pending"
           change="Live soon"
           accent="red"
         >
           <PendingLiveDataState
-            title="Message tracking is not wired yet."
-            note="This panel stays honest until public contact submissions are backed by a real message model and dashboard query."
+            title="Message analytics are not wired yet."
+            note="Public contact submissions can now persist into the inbox, but this chart will stay pending until message-specific analytics aggregation is added."
           />
         </AnalyticsPanel>
       </div>

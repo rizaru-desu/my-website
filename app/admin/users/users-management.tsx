@@ -25,19 +25,16 @@ import {
 } from "react";
 
 import {
-  banManagedUser,
-  createManagedUser,
-  revokeManagedUserSessions,
-  unbanManagedUser,
-} from "@/app/admin/users/actions";
-import {
+  banManagedUserRequest,
+  createManagedUserRequest,
   fetchManagedUsers,
   managedUsersQueryKey,
+  revokeManagedUserSessionsRequest,
+  unbanManagedUserRequest,
 } from "@/app/admin/users/users-management.queries";
 import {
   managedUserRoleOptions,
   type BanManagedUserInput,
-  type ManagedUserActionResult,
   type ManagedUserRecord,
   type ManagedUserRole,
   type UserStatusKey,
@@ -676,21 +673,13 @@ export function UsersManagement() {
       name: string;
       password: string;
       role: ManagedUserRole;
-    }) => {
-      const result = await createManagedUser(values);
-
-      if (!result.ok) {
-        throw new Error(result.message || "The user account could not be created.");
-      }
-
-      return result.message;
-    },
+    }) => createManagedUserRequest(values),
     onMutate: () => {
       setErrorMessage(null);
       setFeedbackMessage(null);
     },
-    onSuccess: async (message) => {
-      setFeedbackMessage(message);
+    onSuccess: async (result) => {
+      setFeedbackMessage(result.message);
       setIsCreateDialogOpen(false);
       await queryClient.invalidateQueries({ queryKey: managedUsersQueryKey });
     },
@@ -711,36 +700,32 @@ export function UsersManagement() {
       user: ManagedUserRecord;
       banInput?: BanManagedUserInput;
     }) => {
-      let result: ManagedUserActionResult;
-
       if (type === "revoke-sessions") {
-        result = await revokeManagedUserSessions(user.id);
-      } else {
-        result = user.banned
-          ? await unbanManagedUser(user.id)
-          : await banManagedUser(
-              banInput ?? {
-                userId: user.id,
-                banReason: "",
-                banExpiresAt: "",
-              },
-            );
+        await revokeManagedUserSessionsRequest(user.id);
+
+        return {
+          message: `${user.email} sessions were revoked.`,
+        };
       }
 
-      if (!result.ok) {
-        throw new Error(
-          result.message ||
-            (type === "revoke-sessions"
-              ? `Failed to revoke sessions for ${user.email}.`
-              : `Failed to ${user.banned ? "unban" : "ban"} ${user.email}.`),
-        );
+      if (user.banned) {
+        await unbanManagedUserRequest(user.id);
+
+        return {
+          message: `${user.email} was unbanned successfully.`,
+        };
       }
+
+      await banManagedUserRequest(
+        banInput ?? {
+          userId: user.id,
+          banReason: "",
+          banExpiresAt: "",
+        },
+      );
 
       return {
-        message:
-          type === "revoke-sessions"
-            ? `${user.email} sessions were revoked.`
-            : `${user.email} was ${user.banned ? "unbanned" : "banned"} successfully.`,
+        message: `${user.email} was banned successfully.`,
       };
     },
     onMutate: ({ user }) => {

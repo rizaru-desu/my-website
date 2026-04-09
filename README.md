@@ -200,3 +200,17 @@ UPSTASH_REDIS_REST_URL=
 UPSTASH_REDIS_REST_TOKEN=
 ANALYTICS_HASH_SALT=
 ```
+
+Optional env for Gmail SMTP delivery via Nodemailer:
+
+```bash
+GOOGLE_SMTP_USER=
+GOOGLE_APP_PASSWORD=
+MAIL_FROM_ADDRESS=
+MAIL_FROM_NAME="Portofolio Admin"
+```
+
+Notes:
+
+- `GOOGLE_APP_PASSWORD` requires Google 2-Step Verification to be enabled.
+- If these env vars are missing, auth emails fall back to console logging instead of crashing.

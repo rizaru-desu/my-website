@@ -8,21 +8,31 @@ import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/c
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-
-import type { MessageRecord } from "./messages.default-values";
+import {
+  formatMessageDate,
+  getMessageStatusLabel,
+  isMessageArchived,
+  isMessageUnread,
+  normalizeReplySubject,
+  type MessageRecord,
+  type MessageReplyInput,
+} from "@/lib/messages.shared";
 
 type MessageDetailPanelProps = {
   message: MessageRecord | null;
+  isReplying: boolean;
+  isUpdating: boolean;
   onArchiveToggle: (messageId: string) => void;
+  onReplySend: (messageId: string, reply: MessageReplyInput) => Promise<void>;
   onToggleRead: (messageId: string) => void;
 };
 
 function getStatusBadge(message: MessageRecord) {
-  if (message.archived) {
+  if (isMessageArchived(message.status)) {
     return <Badge variant="cream">Archived</Badge>;
   }
 
-  if (!message.read) {
+  if (isMessageUnread(message.status)) {
     return <Badge variant="red">Unread</Badge>;
   }
 
@@ -31,43 +41,28 @@ function getStatusBadge(message: MessageRecord) {
 
 export function MessageDetailPanel({
   message,
+  isReplying,
+  isUpdating,
   onArchiveToggle,
+  onReplySend,
   onToggleRead,
 }: MessageDetailPanelProps) {
-  const [replySubject, setReplySubject] = useState("");
   const [replyBody, setReplyBody] = useState("");
-  const [isSending, setIsSending] = useState(false);
-  const [sendState, setSendState] = useState<"idle" | "success">("idle");
+  const [replySubject, setReplySubject] = useState("");
+  const [replyFeedback, setReplyFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     if (!message) {
+      setReplyBody("");
+      setReplyFeedback(null);
       setReplySubject("");
-      setReplyBody("");
-      setSendState("idle");
-      setIsSending(false);
       return;
     }
 
-    setReplySubject(`Re: ${message.subject}`);
     setReplyBody("");
-    setSendState("idle");
-    setIsSending(false);
+    setReplyFeedback(null);
+    setReplySubject(normalizeReplySubject(message.subject));
   }, [message]);
-
-  function handleMockSend() {
-    if (!message || !replyBody.trim()) {
-      return;
-    }
-
-    setIsSending(true);
-    setSendState("idle");
-
-    window.setTimeout(() => {
-      setIsSending(false);
-      setSendState("success");
-      setReplyBody("");
-    }, 700);
-  }
 
   if (!message) {
     return (
@@ -84,6 +79,30 @@ export function MessageDetailPanel({
     );
   }
 
+  const isArchived = isMessageArchived(message.status);
+  const isUnread = isMessageUnread(message.status);
+  const activeMessageId = message.id;
+
+  async function handleReplySend() {
+    if (!replyBody.trim()) {
+      setReplyFeedback("Write a fuller reply before sending it.");
+      return;
+    }
+
+    try {
+      await onReplySend(activeMessageId, {
+        body: replyBody,
+        subject: replySubject,
+      });
+      setReplyBody("");
+      setReplyFeedback("Reply sent successfully.");
+    } catch (error) {
+      setReplyFeedback(
+        error instanceof Error ? error.message : "The reply could not be sent right now.",
+      );
+    }
+  }
+
   return (
     <Card accent="cream" className="h-full transition-all duration-200">
       <CardContent className="space-y-6">
@@ -92,7 +111,7 @@ export function MessageDetailPanel({
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
                 {getStatusBadge(message)}
-                <Badge variant="yellow">{message.company}</Badge>
+                <Badge variant="yellow">{getMessageStatusLabel(message.status)}</Badge>
               </div>
               <CardTitle>{message.subject}</CardTitle>
               <CardDescription>
@@ -100,24 +119,26 @@ export function MessageDetailPanel({
               </CardDescription>
             </div>
             <span className="text-sm font-semibold uppercase tracking-[0.18em] text-ink/55">
-              {message.date}
+              {formatMessageDate(message.createdAt)}
             </span>
           </div>
 
           <div className="flex flex-wrap gap-3">
             <Button
               type="button"
-              variant={message.read ? "muted" : "blue"}
+              variant={isUnread ? "blue" : "muted"}
+              disabled={isUpdating || isArchived}
               onClick={() => onToggleRead(message.id)}
             >
-              Mark as {message.read ? "Unread" : "Read"}
+              Mark as {isUnread ? "Read" : "Unread"}
             </Button>
             <Button
               type="button"
-              variant={message.archived ? "outline" : "default"}
+              variant={isArchived ? "outline" : "default"}
+              disabled={isUpdating || isReplying}
               onClick={() => onArchiveToggle(message.id)}
             >
-              {message.archived ? "Restore" : "Archive"}
+              {isArchived ? "Restore" : "Archive"}
             </Button>
           </div>
         </div>
@@ -141,7 +162,8 @@ export function MessageDetailPanel({
               Reply Draft
             </p>
             <p className="text-sm leading-7 text-ink/75">
-              Use this composer to draft a response from the inbox.
+              Reply sending now uses the configured Gmail SMTP mailer, so this panel can
+              send a direct response from the admin inbox.
             </p>
           </div>
 
@@ -151,8 +173,12 @@ export function MessageDetailPanel({
                 Subject
               </span>
               <Input
+                disabled={isReplying}
                 value={replySubject}
-                onChange={(event) => setReplySubject(event.target.value)}
+                onChange={(event) => {
+                  setReplyFeedback(null);
+                  setReplySubject(event.target.value);
+                }}
               />
             </label>
 
@@ -161,8 +187,12 @@ export function MessageDetailPanel({
                 Reply
               </span>
               <Textarea
+                disabled={isReplying}
                 value={replyBody}
-                onChange={(event) => setReplyBody(event.target.value)}
+                onChange={(event) => {
+                  setReplyFeedback(null);
+                  setReplyBody(event.target.value);
+                }}
                 placeholder="Write a thoughtful follow-up response..."
                 className="min-h-40"
               />
@@ -170,18 +200,29 @@ export function MessageDetailPanel({
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm leading-6 text-ink/68">
-              {sendState === "success"
-                ? "Reply draft sent to this thread."
-                : "This action updates the thread view here first."}
+            <p
+              className={`text-sm leading-6 ${
+                replyFeedback?.toLowerCase().includes("success")
+                  ? "text-accent-blue"
+                  : replyFeedback
+                    ? "text-accent-red"
+                    : "text-ink/68"
+              }`}
+            >
+              {replyFeedback ??
+                (isReplying
+                  ? "Sending the reply through Gmail SMTP..."
+                  : "The reply will be sent to the original sender email on this thread.")}
             </p>
             <Button
               type="button"
               variant="blue"
-              disabled={isSending || !replyBody.trim()}
-              onClick={handleMockSend}
+              disabled={isReplying || !replyBody.trim() || !replySubject.trim()}
+              onClick={() => {
+                void handleReplySend();
+              }}
             >
-              {isSending ? "Sending..." : "Send Reply"}
+              {isReplying ? "Sending..." : "Send Reply"}
             </Button>
           </div>
         </div>

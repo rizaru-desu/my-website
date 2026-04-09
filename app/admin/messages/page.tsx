@@ -1,11 +1,27 @@
+import { headers } from "next/headers";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { EditorialCard } from "@/components/ui/editorial-card";
+import { auth } from "@/lib/auth";
 
 import { MessagesInbox } from "./messages-inbox";
 
-export default function AdminMessagesPage() {
+export default async function AdminMessagesPage() {
+  const requestHeaders = await headers();
+  const session = await auth.api.getSession({
+    headers: requestHeaders,
+  });
+
+  if (!session?.user) {
+    redirect("/login?redirectTo=%2Fadmin%2Fmessages");
+  }
+
+  if (session.user.role !== "architect") {
+    redirect("/admin");
+  }
+
   return (
     <div className="space-y-8">
       <section className="surface-panel surface-panel-blue">
@@ -47,10 +63,10 @@ export default function AdminMessagesPage() {
           <p className="text-sm font-semibold uppercase tracking-[0.22em] text-ink/60">
             Data Mode
           </p>
-              <p className="font-display text-xl uppercase leading-none text-ink">
-                Local Data
-              </p>
-            </EditorialCard>
+          <p className="font-display text-xl uppercase leading-none text-ink">
+            Live Data
+          </p>
+        </EditorialCard>
       </div>
 
       <div className="space-y-3">

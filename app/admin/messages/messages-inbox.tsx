@@ -1,41 +1,68 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card";
+import {
+  formatMessageDate,
+  getMessagePreview,
+  getMessageStatusLabel,
+  isMessageArchived,
+  isMessageUnread,
+  type MessageFilter,
+  type MessageStatusValue,
+} from "@/lib/messages.shared";
 
 import { MessageDetailPanel } from "./message-detail-panel";
 import {
-  messageSeedRecords,
-  type MessageFilter,
-} from "./messages.default-values";
+  adminMessagesQueryKey,
+  fetchAdminMessages,
+  sendAdminMessageReply,
+  updateAdminMessageStatus,
+} from "./messages.queries";
 
-function previewMessageCount(items: typeof messageSeedRecords) {
+function previewMessageCount(
+  items: Awaited<ReturnType<typeof fetchAdminMessages>>,
+) {
   return {
     all: items.length,
-    unread: items.filter((item) => !item.read).length,
-    archived: items.filter((item) => item.archived).length,
+    archived: items.filter((item) => isMessageArchived(item.status)).length,
+    unread: items.filter((item) => isMessageUnread(item.status)).length,
   };
 }
 
 export function MessagesInbox() {
-  const [messages, setMessages] = useState(messageSeedRecords);
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<MessageFilter>("all");
-  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(
-    messageSeedRecords.find((message) => !message.archived)?.id ?? messageSeedRecords[0]?.id ?? null,
-  );
+  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+
+  const {
+    data: messages = [],
+    error,
+    isPending,
+    isRefetching,
+  } = useQuery({
+    queryKey: adminMessagesQueryKey,
+    queryFn: fetchAdminMessages,
+  });
 
   const counts = useMemo(() => previewMessageCount(messages), [messages]);
 
   const filteredMessages = useMemo(() => {
     if (filter === "unread") {
-      return messages.filter((message) => !message.read);
+      return messages.filter((message) => isMessageUnread(message.status));
     }
 
     if (filter === "archived") {
-      return messages.filter((message) => message.archived);
+      return messages.filter((message) => isMessageArchived(message.status));
     }
 
     return messages;
@@ -44,33 +71,71 @@ export function MessagesInbox() {
   const selectedMessage =
     messages.find((message) => message.id === selectedMessageId) ?? null;
 
+  const statusMutation = useMutation({
+    mutationFn: updateAdminMessageStatus,
+    onMutate: () => {
+      setFeedbackMessage(null);
+    },
+    onSuccess: async (result) => {
+      setFeedbackMessage(result.message);
+      await queryClient.invalidateQueries({ queryKey: adminMessagesQueryKey });
+    },
+    onError: (mutationError) => {
+      setFeedbackMessage(
+        mutationError instanceof Error
+          ? mutationError.message
+          : "The message status could not be updated.",
+      );
+    },
+  });
+
+  const replyMutation = useMutation({
+    mutationFn: sendAdminMessageReply,
+    onMutate: () => {
+      setFeedbackMessage(null);
+    },
+    onSuccess: async (result) => {
+      setFeedbackMessage(result.message);
+      await queryClient.invalidateQueries({ queryKey: adminMessagesQueryKey });
+    },
+    onError: (mutationError) => {
+      setFeedbackMessage(
+        mutationError instanceof Error
+          ? mutationError.message
+          : "The reply could not be sent right now.",
+      );
+    },
+  });
+
   useEffect(() => {
     if (filteredMessages.length === 0) {
       setSelectedMessageId(null);
       return;
     }
 
-    if (!filteredMessages.some((message) => message.id === selectedMessageId)) {
+    if (
+      selectedMessageId === null ||
+      !filteredMessages.some((message) => message.id === selectedMessageId)
+    ) {
       setSelectedMessageId(filteredMessages[0].id);
     }
   }, [filteredMessages, selectedMessageId]);
 
-  function updateMessage(messageId: string, nextValues: Partial<(typeof messageSeedRecords)[number]>) {
-    setMessages((currentMessages) =>
-      currentMessages.map((message) =>
-        message.id === messageId
-          ? {
-              ...message,
-              ...nextValues,
-            }
-          : message,
-      ),
-    );
+  function runMessageAction(messageId: string, nextStatus: MessageStatusValue) {
+    statusMutation.mutate({
+      id: messageId,
+      status: nextStatus,
+    });
   }
 
   function handleSelectMessage(messageId: string) {
+    const message = messages.find((item) => item.id === messageId);
+
     setSelectedMessageId(messageId);
-    updateMessage(messageId, { read: true });
+
+    if (message && isMessageUnread(message.status)) {
+      runMessageAction(messageId, "READ");
+    }
   }
 
   return (
@@ -110,8 +175,32 @@ export function MessagesInbox() {
             </div>
           </div>
 
+          {feedbackMessage ? (
+            <div className="rounded-[22px] border-[3px] border-accent-red bg-white px-4 py-3 text-sm font-semibold leading-6 text-accent-red shadow-[5px_5px_0_var(--ink)]">
+              {feedbackMessage}
+            </div>
+          ) : null}
+
+          {error ? (
+            <div className="rounded-[22px] border-[3px] border-accent-red bg-white px-4 py-3 text-sm font-semibold leading-6 text-accent-red shadow-[5px_5px_0_var(--ink)]">
+              {error instanceof Error
+                ? error.message
+                : "The inbox could not be loaded right now."}
+            </div>
+          ) : null}
+
           <div className="space-y-3">
-            {filteredMessages.length === 0 ? (
+            {isPending ? (
+              <Card accent="cream" className="bg-white/70">
+                <CardContent className="space-y-4 text-center">
+                  <Badge variant="yellow">Loading</Badge>
+                  <CardTitle>Loading inbox activity.</CardTitle>
+                  <CardDescription>
+                    Pulling the latest message list from the server.
+                  </CardDescription>
+                </CardContent>
+              </Card>
+            ) : filteredMessages.length === 0 ? (
               <Card accent="cream" className="bg-white/70">
                 <CardContent className="space-y-4 text-center">
                   <Badge variant="yellow">Empty State</Badge>
@@ -124,24 +213,31 @@ export function MessagesInbox() {
             ) : (
               filteredMessages.map((message) => {
                 const isSelected = message.id === selectedMessageId;
+                const isArchived = isMessageArchived(message.status);
+                const isUnread = isMessageUnread(message.status);
+                const isRunning =
+                  statusMutation.isPending && statusMutation.variables?.id === message.id;
 
                 return (
                   <button
                     key={message.id}
                     type="button"
                     onClick={() => handleSelectMessage(message.id)}
+                    disabled={isRunning}
                     className={`w-full rounded-[26px] border-[3px] px-5 py-5 text-left transition-all duration-200 ${
                       isSelected
                         ? "border-ink bg-[linear-gradient(180deg,#dce8ff_0%,#eff4ff_100%)] shadow-[6px_6px_0_var(--ink)]"
-                        : !message.read
+                        : isUnread
                           ? "border-ink bg-[#fff4bd] shadow-[5px_5px_0_var(--ink)] hover:bg-[#ffef9f]"
-                          : "border-ink bg-white/80 shadow-[4px_4px_0_var(--ink)] hover:bg-white"
+                          : isArchived
+                            ? "border-ink bg-panel shadow-[4px_4px_0_var(--ink)] hover:bg-[#f5e6a0]"
+                            : "border-ink bg-white/80 shadow-[4px_4px_0_var(--ink)] hover:bg-white"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0 space-y-3">
                         <div className="flex min-w-0 items-center gap-3">
-                          {!message.read ? (
+                          {isUnread ? (
                             <span className="h-3 w-3 shrink-0 rounded-full border-2 border-ink bg-accent-red" />
                           ) : null}
                           <p className="truncate text-sm font-semibold uppercase tracking-[0.16em] text-ink/62">
@@ -152,16 +248,17 @@ export function MessagesInbox() {
                           {message.subject}
                         </h3>
                         <p className="line-clamp-2 text-sm leading-7 text-ink/76">
-                          {message.preview}
+                          {getMessagePreview(message.body)}
                         </p>
                       </div>
                       <div className="shrink-0 space-y-2 text-right">
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink/55">
-                          {message.date}
+                          {formatMessageDate(message.createdAt)}
                         </p>
                         <div className="flex justify-end gap-2">
-                          {message.archived ? <Badge variant="cream">Archived</Badge> : null}
-                          {!message.read ? <Badge variant="red">Unread</Badge> : null}
+                          <Badge variant={isUnread ? "red" : isArchived ? "cream" : "blue"}>
+                            {isRunning ? "Updating" : getMessageStatusLabel(message.status)}
+                          </Badge>
                         </div>
                       </div>
                     </div>
@@ -170,21 +267,43 @@ export function MessagesInbox() {
               })
             )}
           </div>
+
+          {isRefetching && !isPending ? (
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink/52">
+              Refreshing inbox...
+            </p>
+          ) : null}
         </CardContent>
       </Card>
 
       <MessageDetailPanel
+        isReplying={replyMutation.isPending}
+        isUpdating={statusMutation.isPending}
         message={selectedMessage}
-        onArchiveToggle={(messageId) =>
-          updateMessage(messageId, {
-            archived: !messages.find((message) => message.id === messageId)?.archived,
-          })
-        }
-        onToggleRead={(messageId) =>
-          updateMessage(messageId, {
-            read: !messages.find((message) => message.id === messageId)?.read,
-          })
-        }
+        onArchiveToggle={(messageId) => {
+          const nextStatus = isMessageArchived(
+            messages.find((message) => message.id === messageId)?.status ?? "READ",
+          )
+            ? "READ"
+            : "ARCHIVED";
+
+          runMessageAction(messageId, nextStatus);
+        }}
+        onReplySend={async (messageId, reply) => {
+          await replyMutation.mutateAsync({
+            id: messageId,
+            reply,
+          });
+        }}
+        onToggleRead={(messageId) => {
+          const nextStatus = isMessageUnread(
+            messages.find((message) => message.id === messageId)?.status ?? "READ",
+          )
+            ? "READ"
+            : "UNREAD";
+
+          runMessageAction(messageId, nextStatus);
+        }}
       />
     </div>
   );

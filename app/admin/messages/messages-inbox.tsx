@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   useMutation,
   useQuery,
@@ -38,6 +38,21 @@ function previewMessageCount(
   };
 }
 
+function matchesFilter(
+  status: MessageStatusValue,
+  filter: MessageFilter,
+) {
+  if (filter === "unread") {
+    return isMessageUnread(status);
+  }
+
+  if (filter === "archived") {
+    return isMessageArchived(status);
+  }
+
+  return true;
+}
+
 export function MessagesInbox() {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<MessageFilter>("all");
@@ -69,12 +84,20 @@ export function MessagesInbox() {
   }, [filter, messages]);
 
   const selectedMessage =
-    messages.find((message) => message.id === selectedMessageId) ?? null;
+    filteredMessages.find((message) => message.id === selectedMessageId) ?? null;
 
   const statusMutation = useMutation({
     mutationFn: updateAdminMessageStatus,
-    onMutate: () => {
+    onMutate: (input) => {
       setFeedbackMessage(null);
+
+      if (selectedMessageId !== input.id) {
+        return;
+      }
+
+      if (!matchesFilter(input.status, filter)) {
+        setSelectedMessageId(null);
+      }
     },
     onSuccess: async (result) => {
       setFeedbackMessage(result.message);
@@ -94,7 +117,11 @@ export function MessagesInbox() {
     onMutate: () => {
       setFeedbackMessage(null);
     },
-    onSuccess: async (result) => {
+    onSuccess: async (result, variables) => {
+      if (filter === "unread" && selectedMessageId === variables.id) {
+        setSelectedMessageId(null);
+      }
+
       setFeedbackMessage(result.message);
       await queryClient.invalidateQueries({ queryKey: adminMessagesQueryKey });
     },
@@ -106,20 +133,6 @@ export function MessagesInbox() {
       );
     },
   });
-
-  useEffect(() => {
-    if (filteredMessages.length === 0) {
-      setSelectedMessageId(null);
-      return;
-    }
-
-    if (
-      selectedMessageId === null ||
-      !filteredMessages.some((message) => message.id === selectedMessageId)
-    ) {
-      setSelectedMessageId(filteredMessages[0].id);
-    }
-  }, [filteredMessages, selectedMessageId]);
 
   function runMessageAction(messageId: string, nextStatus: MessageStatusValue) {
     statusMutation.mutate({
@@ -135,6 +148,20 @@ export function MessagesInbox() {
 
     if (message && isMessageUnread(message.status)) {
       runMessageAction(messageId, "READ");
+    }
+  }
+
+  function handleFilterChange(nextFilter: MessageFilter) {
+    setFilter(nextFilter);
+
+    if (selectedMessageId === null) {
+      return;
+    }
+
+    const selectedItem = messages.find((message) => message.id === selectedMessageId);
+
+    if (!selectedItem || !matchesFilter(selectedItem.status, nextFilter)) {
+      setSelectedMessageId(null);
     }
   }
 
@@ -154,21 +181,21 @@ export function MessagesInbox() {
               <Button
                 type="button"
                 variant={filter === "all" ? "blue" : "muted"}
-                onClick={() => setFilter("all")}
+                onClick={() => handleFilterChange("all")}
               >
                 All {counts.all}
               </Button>
               <Button
                 type="button"
                 variant={filter === "unread" ? "blue" : "muted"}
-                onClick={() => setFilter("unread")}
+                onClick={() => handleFilterChange("unread")}
               >
                 Unread {counts.unread}
               </Button>
               <Button
                 type="button"
                 variant={filter === "archived" ? "blue" : "muted"}
-                onClick={() => setFilter("archived")}
+                onClick={() => handleFilterChange("archived")}
               >
                 Archived {counts.archived}
               </Button>
@@ -277,6 +304,7 @@ export function MessagesInbox() {
       </Card>
 
       <MessageDetailPanel
+        key={selectedMessage?.id ?? "empty-message-detail"}
         isReplying={replyMutation.isPending}
         isUpdating={statusMutation.isPending}
         message={selectedMessage}

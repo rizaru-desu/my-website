@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,21 +48,10 @@ export function MessageDetailPanel({
   onToggleRead,
 }: MessageDetailPanelProps) {
   const [replyBody, setReplyBody] = useState("");
-  const [replySubject, setReplySubject] = useState("");
+  const [replySubject, setReplySubject] = useState(
+    message ? normalizeReplySubject(message.subject) : "",
+  );
   const [replyFeedback, setReplyFeedback] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!message) {
-      setReplyBody("");
-      setReplyFeedback(null);
-      setReplySubject("");
-      return;
-    }
-
-    setReplyBody("");
-    setReplyFeedback(null);
-    setReplySubject(normalizeReplySubject(message.subject));
-  }, [message]);
 
   if (!message) {
     return (

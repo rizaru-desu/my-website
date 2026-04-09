@@ -141,6 +141,31 @@ model Testimonial {
   @@map("testimonial")
 }
 
+model CvDownloadLog {
+  id           String   @id @default(cuid())
+  ipHash       String
+  userAgent    String
+  referrer     String   @default("direct")
+  downloadedAt DateTime @default(now())
+
+  @@index([downloadedAt])
+  @@index([ipHash, downloadedAt])
+  @@map("cvDownloadLog")
+}
+
+model ResumeAsset {
+  id            String   @id @default(cuid())
+  storageKey    String   @unique @default("primary")
+  downloadUrl   String
+  fileName      String?
+  fileSizeBytes Int?
+  mimeType      String   @default("application/pdf")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("resumeAsset")
+}
+
 enum MessageStatus {
   UNREAD
   READ

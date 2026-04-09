@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { unstable_noStore as noStore } from "next/cache";
 
 import { DashboardAnalytics } from "./dashboard-analytics";
 import { Badge } from "@/components/ui/badge";
 import { EditorialCard } from "@/components/ui/editorial-card";
 import { SectionShell } from "@/components/ui/section-shell";
+import { getDashboardMessageAnalytics } from "@/lib/messages";
 import {
   adminActivity,
   adminCollections,
@@ -11,7 +13,21 @@ import {
   adminQueue,
 } from "@/lib/mock-content";
 
-export default function AdminDashboardPage() {
+export default async function AdminDashboardPage() {
+  noStore();
+
+  const messageAnalytics = await getDashboardMessageAnalytics();
+  const syncedMetrics = adminMetrics.map((metric) =>
+    metric.label === "Messages Flagged"
+      ? {
+          ...metric,
+          change: messageAnalytics.metric.change,
+          note: messageAnalytics.metric.note,
+          value: messageAnalytics.metric.value,
+        }
+      : metric,
+  );
+
   return (
     <div className="space-y-8">
       <section className="surface-panel relative overflow-hidden bg-panel px-6 py-8 sm:px-8">
@@ -41,7 +57,7 @@ export default function AdminDashboardPage() {
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
-        {adminMetrics.map((metric) => (
+        {syncedMetrics.map((metric) => (
           <EditorialCard
             key={metric.label}
             accent={metric.accent}

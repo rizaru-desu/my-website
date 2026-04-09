@@ -6,7 +6,16 @@ import { PageHero } from "@/components/ui/page-hero";
 import { SectionShell } from "@/components/ui/section-shell";
 import { education, experiences, profile, skillGroups } from "@/lib/mock-content";
 
-export default function ResumePage() {
+export default async function ResumePage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    download?: string;
+  }>;
+}) {
+  const { download } = await searchParams;
+  const showDownloadUnavailable = download === "unavailable";
+
   return (
     <div className="px-4 pb-6 pt-8 sm:px-6 sm:pt-10">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-12">
@@ -16,18 +25,27 @@ export default function ResumePage() {
           description="This route is intentionally recruiter-friendly: scan fast, understand scope, and jump back into work samples when needed."
         >
           <div className="flex flex-wrap gap-4">
-            <button
-              type="button"
-              aria-disabled="true"
-              className="button-link button-link-muted cursor-not-allowed"
-            >
+            <a href="/api/cv/download" className="button-link button-link-blue">
               Download CV
-            </button>
+            </a>
             <Link href="/projects" className="button-link">
               Open Projects
             </Link>
           </div>
         </PageHero>
+
+        {showDownloadUnavailable ? (
+          <EditorialCard accent="red" className="space-y-3">
+            <Badge variant="red">Download Unavailable</Badge>
+            <h2 className="font-display text-3xl uppercase leading-none text-ink">
+              CV download is not configured yet.
+            </h2>
+            <p className="text-sm leading-7 text-ink/78">
+              Add `RESUME_DOWNLOAD_URL` on the server, then try the download button
+              again. The resume page itself still stays available for recruiters to scan.
+            </p>
+          </EditorialCard>
+        ) : null}
 
         <section className="grid gap-6 lg:grid-cols-[0.72fr_1.28fr]">
           <EditorialCard accent="blue" className="space-y-5">

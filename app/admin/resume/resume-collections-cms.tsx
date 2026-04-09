@@ -31,6 +31,8 @@ import {
   type ExperienceItem,
 } from "@/lib/mock-content";
 
+import { ResumePagination } from "./resume-pagination";
+
 type ExperienceRecord = ExperienceItem & {
   id: string;
   updatedAt: string;
@@ -77,6 +79,8 @@ type FeedbackState = {
   detail: string;
 } | null;
 
+const defaultCollectionPageSize = 3;
+
 const experienceSeedRecords: ExperienceRecord[] = experiences.map((item, index) => ({
   id: `resume-exp-${index + 1}`,
   updatedAt: index === 0 ? "Today" : index === 1 ? "2 days ago" : "1 week ago",
@@ -117,6 +121,23 @@ function isValidUrl(value: string) {
   } catch {
     return false;
   }
+}
+
+function normalizeQuery(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function paginateItems<T>(items: T[], currentPage: number, pageSize: number) {
+  const safePageSize = Math.max(1, pageSize);
+  const pageCount = Math.max(1, Math.ceil(items.length / safePageSize));
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), pageCount);
+  const start = (safeCurrentPage - 1) * safePageSize;
+
+  return {
+    pageCount,
+    pagedItems: items.slice(start, start + safePageSize),
+    safeCurrentPage,
+  };
 }
 
 function createExperienceFormValues(item?: ExperienceRecord | null): ExperienceFormValues {
@@ -234,6 +255,64 @@ function FeedbackBanner({ feedback }: { feedback: FeedbackState }) {
   );
 }
 
+function FilterToolbar({
+  actions,
+  clearDisabled,
+  filterLabel,
+  onClear,
+  onSearchChange,
+  placeholder,
+  resultSummary,
+  searchValue,
+}: {
+  actions?: ReactNode;
+  clearDisabled: boolean;
+  filterLabel: string;
+  onClear: () => void;
+  onSearchChange: (value: string) => void;
+  placeholder: string;
+  resultSummary: string;
+  searchValue: string;
+}) {
+  return (
+    <div className="rounded-[24px] border-[3px] border-ink bg-white/70 px-4 py-4 shadow-[6px_6px_0_var(--ink)]">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0 flex-1 space-y-4">
+          <label className="space-y-3">
+            <span className="text-sm font-semibold uppercase tracking-[0.16em] text-ink/70">
+              {filterLabel}
+            </span>
+            <Input
+              className="max-w-2xl"
+              value={searchValue}
+              onChange={(event) => onSearchChange(event.target.value)}
+              placeholder={placeholder}
+            />
+          </label>
+          <p className="break-words pt-1 text-xs font-semibold uppercase tracking-[0.16em] text-ink/52">
+            {resultSummary}
+          </p>
+        </div>
+
+        <div className="flex w-full flex-col gap-3 lg:w-auto lg:min-w-[220px] lg:flex-none lg:items-end">
+          {actions ? (
+            <div className="flex w-full flex-wrap gap-2 lg:justify-end">{actions}</div>
+          ) : null}
+          <Button
+            type="button"
+            variant="muted"
+            className="w-full lg:w-auto"
+            onClick={onClear}
+            disabled={clearDisabled}
+          >
+            Clear Filters
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 type ExperienceManagerProps = {
   setFeedback: (feedback: FeedbackState) => void;
 };
@@ -242,6 +321,9 @@ function ExperienceManager({ setFeedback }: ExperienceManagerProps) {
   const [items, setItems] = useState(experienceSeedRecords);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(defaultCollectionPageSize);
   const [values, setValues] = useState<ExperienceFormValues>(createExperienceFormValues());
   const [errors, setErrors] = useState<
     Partial<Record<keyof ExperienceFormValues, string>>
@@ -251,6 +333,32 @@ function ExperienceManager({ setFeedback }: ExperienceManagerProps) {
     () => items.find((item) => item.id === editingId) ?? null,
     [editingId, items],
   );
+  const filteredItems = useMemo(() => {
+    const query = normalizeQuery(searchQuery);
+
+    if (!query) {
+      return items;
+    }
+
+    return items.filter((item) =>
+      [
+        item.role,
+        item.company,
+        item.location,
+        item.period,
+        item.summary,
+        ...item.achievements,
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(query),
+    );
+  }, [items, searchQuery]);
+  const pagination = useMemo(
+    () => paginateItems(filteredItems, currentPage, pageSize),
+    [currentPage, filteredItems, pageSize],
+  );
+  const resultSummary = `${filteredItems.length} of ${items.length} experience records`;
 
   function openEditor(item?: ExperienceRecord | null) {
     setEditingId(item?.id ?? null);
@@ -290,6 +398,7 @@ function ExperienceManager({ setFeedback }: ExperienceManagerProps) {
         ? currentItems.map((item) => (item.id === editingItem.id ? nextRecord : item))
         : [nextRecord, ...currentItems],
     );
+    setCurrentPage(1);
 
     setFeedback({
       title: editingItem ? "Experience updated" : "Experience added",
@@ -300,6 +409,7 @@ function ExperienceManager({ setFeedback }: ExperienceManagerProps) {
 
   function handleDelete(item: ExperienceRecord) {
     setItems((currentItems) => currentItems.filter((current) => current.id !== item.id));
+    setCurrentPage(1);
     setFeedback({
       title: "Experience removed",
       detail: `${item.role} at ${item.company} was removed from the local resume manager.`,
@@ -325,39 +435,82 @@ function ExperienceManager({ setFeedback }: ExperienceManagerProps) {
           </Button>
         </div>
 
+        <FilterToolbar
+          clearDisabled={!searchQuery}
+          filterLabel="Filter experience"
+          onClear={() => {
+            setSearchQuery("");
+            setCurrentPage(1);
+          }}
+          onSearchChange={(value) => {
+            setSearchQuery(value);
+            setCurrentPage(1);
+          }}
+          placeholder="Search role, company, location, or achievement..."
+          resultSummary={resultSummary}
+          searchValue={searchQuery}
+        />
+
         <div className="space-y-4">
-          {items.map((item, index) => (
-            <Card
-              key={item.id}
-              accent={index % 2 === 0 ? "cream" : "red"}
-              className="bg-white/75"
-            >
-              <CardContent className="space-y-4">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="space-y-2">
-                    <p className="text-sm font-semibold uppercase tracking-[0.2em] text-ink/58">
-                      {item.period}
-                    </p>
-                    <CardTitle>{item.role}</CardTitle>
-                    <p className="text-sm font-semibold uppercase tracking-[0.16em] text-ink/66">
-                      {item.company} • {item.location}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-3">
-                    <Badge variant="yellow">{item.updatedAt}</Badge>
-                    <Button type="button" variant="muted" onClick={() => openEditor(item)}>
-                      Edit
-                    </Button>
-                    <Button type="button" variant="default" onClick={() => handleDelete(item)}>
-                      Remove
-                    </Button>
-                  </div>
-                </div>
-                <p className="text-sm leading-7 text-ink/78">{item.summary}</p>
+          {filteredItems.length === 0 ? (
+            <Card className="bg-white/75">
+              <CardContent className="space-y-4 text-center">
+                <Badge variant="yellow">No Matches</Badge>
+                <CardTitle>No experience records match this filter.</CardTitle>
+                <CardDescription>
+                  Try a broader role, company, or keyword search to bring entries back.
+                </CardDescription>
               </CardContent>
             </Card>
-          ))}
+          ) : (
+            pagination.pagedItems.map((item, index) => (
+              <Card
+                key={item.id}
+                accent={index % 2 === 0 ? "cream" : "red"}
+                className="bg-white/75"
+              >
+                <CardContent className="space-y-4">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="space-y-2">
+                      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-ink/58">
+                        {item.period}
+                      </p>
+                      <CardTitle>{item.role}</CardTitle>
+                      <p className="text-sm font-semibold uppercase tracking-[0.16em] text-ink/66">
+                        {item.company} • {item.location}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                      <Badge variant="yellow">{item.updatedAt}</Badge>
+                      <Button type="button" variant="muted" onClick={() => openEditor(item)}>
+                        Edit
+                      </Button>
+                      <Button type="button" variant="default" onClick={() => handleDelete(item)}>
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="text-sm leading-7 text-ink/78">{item.summary}</p>
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
+
+        {filteredItems.length > 0 ? (
+          <ResumePagination
+            currentPage={pagination.safeCurrentPage}
+            label="experience items"
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(nextPageSize) => {
+              setPageSize(nextPageSize);
+              setCurrentPage(1);
+            }}
+            pageCount={pagination.pageCount}
+            pageSize={pageSize}
+            totalItems={filteredItems.length}
+          />
+        ) : null}
 
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogContent className="max-w-4xl">
@@ -448,6 +601,9 @@ function EducationManager({ setFeedback }: EducationManagerProps) {
   const [items, setItems] = useState(educationSeedRecords);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(defaultCollectionPageSize);
   const [values, setValues] = useState<EducationFormValues>(createEducationFormValues());
   const [errors, setErrors] = useState<
     Partial<Record<keyof EducationFormValues, string>>
@@ -457,6 +613,25 @@ function EducationManager({ setFeedback }: EducationManagerProps) {
     () => items.find((item) => item.id === editingId) ?? null,
     [editingId, items],
   );
+  const filteredItems = useMemo(() => {
+    const query = normalizeQuery(searchQuery);
+
+    if (!query) {
+      return items;
+    }
+
+    return items.filter((item) =>
+      [item.degree, item.school, item.period, item.description, ...item.highlights]
+        .join(" ")
+        .toLowerCase()
+        .includes(query),
+    );
+  }, [items, searchQuery]);
+  const pagination = useMemo(
+    () => paginateItems(filteredItems, currentPage, pageSize),
+    [currentPage, filteredItems, pageSize],
+  );
+  const resultSummary = `${filteredItems.length} of ${items.length} education records`;
 
   function openEditor(item?: EducationRecord | null) {
     setEditingId(item?.id ?? null);
@@ -495,6 +670,7 @@ function EducationManager({ setFeedback }: EducationManagerProps) {
         ? currentItems.map((item) => (item.id === editingItem.id ? nextRecord : item))
         : [nextRecord, ...currentItems],
     );
+    setCurrentPage(1);
 
     setFeedback({
       title: editingItem ? "Education updated" : "Education added",
@@ -505,6 +681,7 @@ function EducationManager({ setFeedback }: EducationManagerProps) {
 
   function handleDelete(item: EducationRecord) {
     setItems((currentItems) => currentItems.filter((current) => current.id !== item.id));
+    setCurrentPage(1);
     setFeedback({
       title: "Education removed",
       detail: `${item.school} was removed from the local education manager.`,
@@ -530,42 +707,85 @@ function EducationManager({ setFeedback }: EducationManagerProps) {
           </Button>
         </div>
 
+        <FilterToolbar
+          clearDisabled={!searchQuery}
+          filterLabel="Filter education"
+          onClear={() => {
+            setSearchQuery("");
+            setCurrentPage(1);
+          }}
+          onSearchChange={(value) => {
+            setSearchQuery(value);
+            setCurrentPage(1);
+          }}
+          placeholder="Search degree, school, period, or highlight..."
+          resultSummary={resultSummary}
+          searchValue={searchQuery}
+        />
+
         <div className="space-y-4">
-          {items.map((item) => (
-            <Card key={item.id} className="bg-white/75">
-              <CardContent className="space-y-4">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="space-y-2">
-                    <p className="text-sm font-semibold uppercase tracking-[0.2em] text-ink/58">
-                      {item.period}
-                    </p>
-                    <CardTitle>{item.degree}</CardTitle>
-                    <p className="text-sm font-semibold uppercase tracking-[0.16em] text-ink/66">
-                      {item.school}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-3">
-                    <Badge variant="cream">{item.updatedAt}</Badge>
-                    <Button type="button" variant="muted" onClick={() => openEditor(item)}>
-                      Edit
-                    </Button>
-                    <Button type="button" variant="default" onClick={() => handleDelete(item)}>
-                      Remove
-                    </Button>
-                  </div>
-                </div>
-                <p className="text-sm leading-7 text-ink/78">{item.description}</p>
-                <div className="flex flex-wrap gap-2">
-                  {item.highlights.map((highlight) => (
-                    <Badge key={highlight} variant="cream">
-                      {highlight}
-                    </Badge>
-                  ))}
-                </div>
+          {filteredItems.length === 0 ? (
+            <Card className="bg-white/75">
+              <CardContent className="space-y-4 text-center">
+                <Badge variant="yellow">No Matches</Badge>
+                <CardTitle>No education records match this filter.</CardTitle>
+                <CardDescription>
+                  Try a broader school, degree, or keyword search to surface the entries again.
+                </CardDescription>
               </CardContent>
             </Card>
-          ))}
+          ) : (
+            pagination.pagedItems.map((item) => (
+              <Card key={item.id} className="bg-white/75">
+                <CardContent className="space-y-4">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="space-y-2">
+                      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-ink/58">
+                        {item.period}
+                      </p>
+                      <CardTitle>{item.degree}</CardTitle>
+                      <p className="text-sm font-semibold uppercase tracking-[0.16em] text-ink/66">
+                        {item.school}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                      <Badge variant="cream">{item.updatedAt}</Badge>
+                      <Button type="button" variant="muted" onClick={() => openEditor(item)}>
+                        Edit
+                      </Button>
+                      <Button type="button" variant="default" onClick={() => handleDelete(item)}>
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="text-sm leading-7 text-ink/78">{item.description}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {item.highlights.map((highlight) => (
+                      <Badge key={highlight} variant="cream">
+                        {highlight}
+                      </Badge>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
+
+        {filteredItems.length > 0 ? (
+          <ResumePagination
+            currentPage={pagination.safeCurrentPage}
+            label="education items"
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(nextPageSize) => {
+              setPageSize(nextPageSize);
+              setCurrentPage(1);
+            }}
+            pageCount={pagination.pageCount}
+            pageSize={pageSize}
+            totalItems={filteredItems.length}
+          />
+        ) : null}
 
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogContent className="max-w-4xl">
@@ -648,6 +868,12 @@ function CertificatesManager({ setFeedback }: CertificatesManagerProps) {
   const [items, setItems] = useState(certificateSeedRecords);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [featuredFilter, setFeaturedFilter] = useState<"all" | "featured" | "standard">(
+    "all",
+  );
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(defaultCollectionPageSize);
   const [values, setValues] = useState<CertificateFormValues>(
     createCertificateFormValues(),
   );
@@ -659,6 +885,29 @@ function CertificatesManager({ setFeedback }: CertificatesManagerProps) {
     () => items.find((item) => item.id === editingId) ?? null,
     [editingId, items],
   );
+  const filteredItems = useMemo(() => {
+    const query = normalizeQuery(searchQuery);
+
+    return items.filter((item) => {
+      const matchesFeatured =
+        featuredFilter === "all" ||
+        (featuredFilter === "featured" ? item.featured : !item.featured);
+
+      const matchesQuery =
+        !query ||
+        [item.name, item.issuer, item.year, item.verificationLink, item.credentialId ?? ""]
+          .join(" ")
+          .toLowerCase()
+          .includes(query);
+
+      return matchesFeatured && matchesQuery;
+    });
+  }, [featuredFilter, items, searchQuery]);
+  const pagination = useMemo(
+    () => paginateItems(filteredItems, currentPage, pageSize),
+    [currentPage, filteredItems, pageSize],
+  );
+  const resultSummary = `${filteredItems.length} of ${items.length} certificate records`;
 
   function openEditor(item?: CertificateRecord | null) {
     setEditingId(item?.id ?? null);
@@ -698,6 +947,7 @@ function CertificatesManager({ setFeedback }: CertificatesManagerProps) {
         ? currentItems.map((item) => (item.id === editingItem.id ? nextRecord : item))
         : [nextRecord, ...currentItems],
     );
+    setCurrentPage(1);
 
     setFeedback({
       title: editingItem ? "Certificate updated" : "Certificate added",
@@ -708,6 +958,7 @@ function CertificatesManager({ setFeedback }: CertificatesManagerProps) {
 
   function handleDelete(item: CertificateRecord) {
     setItems((currentItems) => currentItems.filter((current) => current.id !== item.id));
+    setCurrentPage(1);
     setFeedback({
       title: "Certificate removed",
       detail: `${item.name} was removed from the local certificates manager.`,
@@ -734,6 +985,60 @@ function CertificatesManager({ setFeedback }: CertificatesManagerProps) {
           </Button>
         </div>
 
+        <FilterToolbar
+          actions={
+            <>
+              <Button
+                type="button"
+                size="sm"
+                variant={featuredFilter === "all" ? "blue" : "muted"}
+                onClick={() => {
+                  setFeaturedFilter("all");
+                  setCurrentPage(1);
+                }}
+              >
+                All
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={featuredFilter === "featured" ? "blue" : "muted"}
+                onClick={() => {
+                  setFeaturedFilter("featured");
+                  setCurrentPage(1);
+                }}
+              >
+                Featured
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={featuredFilter === "standard" ? "blue" : "muted"}
+                onClick={() => {
+                  setFeaturedFilter("standard");
+                  setCurrentPage(1);
+                }}
+              >
+                Standard
+              </Button>
+            </>
+          }
+          clearDisabled={!searchQuery && featuredFilter === "all"}
+          filterLabel="Filter certificates"
+          onClear={() => {
+            setSearchQuery("");
+            setFeaturedFilter("all");
+            setCurrentPage(1);
+          }}
+          onSearchChange={(value) => {
+            setSearchQuery(value);
+            setCurrentPage(1);
+          }}
+          placeholder="Search certificate, issuer, year, or credential..."
+          resultSummary={resultSummary}
+          searchValue={searchQuery}
+        />
+
         <div className="space-y-4">
           {items.length === 0 ? (
             <Card className="bg-white/75">
@@ -748,8 +1053,18 @@ function CertificatesManager({ setFeedback }: CertificatesManagerProps) {
                 </Button>
               </CardContent>
             </Card>
+          ) : filteredItems.length === 0 ? (
+            <Card className="bg-white/75">
+              <CardContent className="space-y-4 text-center">
+                <Badge variant="yellow">No Matches</Badge>
+                <CardTitle>No certificates match the current filters.</CardTitle>
+                <CardDescription>
+                  Try a broader keyword or switch the featured filter back to all certificates.
+                </CardDescription>
+              </CardContent>
+            </Card>
           ) : (
-            items.map((item) => (
+            pagination.pagedItems.map((item) => (
               <Card key={item.id} className="bg-white/75">
                 <CardContent className="space-y-4">
                   <div className="flex flex-wrap items-start justify-between gap-4">
@@ -788,6 +1103,21 @@ function CertificatesManager({ setFeedback }: CertificatesManagerProps) {
             ))
           )}
         </div>
+
+        {items.length > 0 && filteredItems.length > 0 ? (
+          <ResumePagination
+            currentPage={pagination.safeCurrentPage}
+            label="certificate items"
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(nextPageSize) => {
+              setPageSize(nextPageSize);
+              setCurrentPage(1);
+            }}
+            pageCount={pagination.pageCount}
+            pageSize={pageSize}
+            totalItems={filteredItems.length}
+          />
+        ) : null}
 
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogContent className="max-w-4xl">

@@ -22,6 +22,14 @@ export function isMissingTestimonialTableError(error: unknown) {
   return isMissingRelationError(error, "testimonial");
 }
 
+export function isMissingCvDownloadLogTableError(error: unknown) {
+  return isMissingRelationError(error, "cvDownloadLog");
+}
+
+export function isMissingResumeAssetTableError(error: unknown) {
+  return isMissingRelationError(error, "resumeAsset");
+}
+
 export function isPrismaConnectionError(error: unknown) {
   if (
     error instanceof Prisma.PrismaClientInitializationError ||

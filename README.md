@@ -78,7 +78,7 @@ The honest read:
 **Partial / Mock**
 
 - Most non-user CMS sections outside testimonials are still driven by `mock-content`, default-value files, or local-only state instead of persisted records.
-- Dashboard analytics now use live visitor tracking for visitors and top pages, but message and resume-download analytics are still pending.
+- Dashboard analytics now use live visitor tracking for visitors, messages, and resume downloads, while deeper aggregation still remains pending in other areas.
 - Resume upload, profile photo upload, and blog/project media handling are UI simulations rather than connected cloud storage flows.
 - Message replies depend on SMTP env configuration, so reply composition is live but outbound delivery still depends on mailer setup.
 - Some save flows are intentionally local/editorial rather than true CRUD persistence.
@@ -99,6 +99,7 @@ The honest read:
 - Reading progress for blog articles is implemented in [`components/reading-progress.tsx`](components/reading-progress.tsx).
 - Public filtering UI exists for projects and blog through [`components/project-filter.tsx`](components/project-filter.tsx) and [`components/blog-filter.tsx`](components/blog-filter.tsx).
 - The public contact form persists inbound messages through [`app/actions/contact.action.ts`](app/actions/contact.action.ts) into the admin inbox backed by [`prisma/schema.prisma`](prisma/schema.prisma).
+- The public resume route now uses a real CV download proxy at [`app/api/cv/download/route.ts`](app/api/cv/download/route.ts), with redirect fallback when the asset URL is not configured yet.
 - A dedicated public testimonial submission page exists at [`app/testimonials/page.tsx`](app/testimonials/page.tsx), and homepage proof cards now read approved featured testimonials through [`lib/testimonials.ts`](lib/testimonials.ts).
 - Public testimonial submission is backed by a real server action, moderation queue, and optional Upstash-based rate limiting through [`app/actions/testimonial.action.ts`](app/actions/testimonial.action.ts) and [`components/testimonial-section.tsx`](components/testimonial-section.tsx).
 
@@ -121,6 +122,7 @@ The honest read:
 - Real backend querying exists for managed admin users through [`lib/admin-users.ts`](lib/admin-users.ts), [`app/api/admin/users/route.ts`](app/api/admin/users/route.ts), and [`app/admin/users/actions.ts`](app/admin/users/actions.ts).
 - Visitor analytics now have a real persistence model and query layer through [`prisma/schema.prisma`](prisma/schema.prisma), [`lib/visitor-analytics.ts`](lib/visitor-analytics.ts), and [`app/api/track/visit/route.ts`](app/api/track/visit/route.ts).
 - Messages now have a real Prisma model, public submission action, admin inbox handlers, and reply/status flows through [`prisma/schema.prisma`](prisma/schema.prisma), [`app/actions/contact.action.ts`](app/actions/contact.action.ts), and [`app/api/admin/messages`](app/api/admin/messages).
+- Resume downloads now have a real tracking model, route handler, and dashboard query layer through [`prisma/schema.prisma`](prisma/schema.prisma), [`app/api/cv/download/route.ts`](app/api/cv/download/route.ts), and [`lib/resume.ts`](lib/resume.ts).
 - Testimonials now have a real Prisma model, seed data, public submission flow, and admin moderation handlers through [`prisma/schema.prisma`](prisma/schema.prisma), [`prisma/seed.mjs`](prisma/seed.mjs), and [`app/api/admin/testimonials`](app/api/admin/testimonials).
 
 **Partial / Mock**
@@ -131,11 +133,11 @@ The honest read:
 
 **Not Yet**
 
-- Prisma content models for profile, projects, skills, education, experience, certificates, blog posts, and CV download logs.
+- Prisma content models for profile, projects, skills, education, experience, certificates, and blog posts.
 - Full server actions or route handlers for CMS CRUD across those content models.
 - Broader Redis-backed caching, dedup, or rate limiting beyond visitor analytics and testimonial submissions.
 - BullMQ or background job infrastructure.
-- Real analytics tracking for messages and resume downloads.
+- Broader analytics beyond visitors, inbox, and resume downloads.
 
 ### 5. Platform, SEO, and Ops
 
@@ -163,7 +165,7 @@ If this repo continues toward a production CMS, the highest-value next steps are
 1. Add Prisma content models beyond auth, analytics, and testimonials.
 2. Replace mock/local admin save flows with real persisted CRUD for the remaining CMS sections.
 3. Add real email delivery and file storage.
-4. Extend live analytics beyond visitors, then add message and resume-download tracking.
+4. Extend live analytics beyond visitors, inbox, and resume downloads.
 5. Add SEO files and production monitoring.
 
 ## Local Setup
@@ -205,6 +207,12 @@ Optional env for live visitor analytics and testimonial submission rate limiting
 UPSTASH_REDIS_REST_URL=
 UPSTASH_REDIS_REST_TOKEN=
 ANALYTICS_HASH_SALT=
+```
+
+Optional env for the tracked CV download redirect:
+
+```bash
+RESUME_DOWNLOAD_URL=
 ```
 
 Optional env for Gmail SMTP delivery via Nodemailer:

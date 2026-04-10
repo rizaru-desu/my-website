@@ -1,5 +1,19 @@
 import { z } from "zod";
 
+export const MAX_PROFILE_PHOTO_FILE_BYTES = 1024 * 1024;
+export const MAX_PROFILE_PHOTO_DATA_URL_LENGTH = 1_500_000;
+
+const profilePhotoDataUrlSchema = z
+  .string()
+  .max(
+    MAX_PROFILE_PHOTO_DATA_URL_LENGTH,
+    "Keep the profile photo under 1MB before upload.",
+  )
+  .regex(
+    /^data:image\/(?:png|jpe?g|webp|gif|svg\+xml);base64,[a-z0-9+/=]+$/i,
+    "Upload a valid image data URL.",
+  );
+
 export const socialLinkSchema = z.object({
   label: z
     .string()
@@ -45,6 +59,9 @@ export const profileSchema = z.object({
     .string()
     .min(4, "Primary CTA is required.")
     .max(40, "Keep the CTA under 40 characters."),
+  profilePhotoUrl: z
+    .union([profilePhotoDataUrlSchema, z.literal(""), z.null()])
+    .transform((value) => (value === "" ? null : value)),
   socialLinks: z
     .array(socialLinkSchema)
     .min(1, "Add at least one social link.")

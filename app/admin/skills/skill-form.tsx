@@ -111,7 +111,7 @@ export function SkillForm({
             <Badge variant={mode === "create" ? "blue" : "red"}>
               {mode === "create" ? "New Skill" : "Edit Skill"}
             </Badge>
-            <Badge variant="cream">Local Save</Badge>
+            <Badge variant="cream">Database Save</Badge>
           </div>
           <CardTitle>
             {mode === "create"
@@ -120,7 +120,7 @@ export function SkillForm({
           </CardTitle>
           <CardDescription>
             This editor stays intentionally lean: skill name, category, level, and
-            featured state, all managed locally with inline validation.
+            featured state, all persisted with inline validation.
           </CardDescription>
         </CardContent>
       </Card>

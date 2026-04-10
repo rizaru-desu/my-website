@@ -969,7 +969,7 @@ function CertificatesManager({ setFeedback }: CertificatesManagerProps) {
   }
 
   return (
-    <Card accent="red">
+    <Card id="certificates-manager" accent="red">
       <CardContent className="space-y-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-3">

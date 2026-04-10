@@ -16,7 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 
-import type { SkillRecord } from "./skill.default-values";
+import type { SkillRecord } from "@/lib/skills.shared";
 
 type SkillListProps = {
   isLoading: boolean;

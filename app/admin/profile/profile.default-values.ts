@@ -13,6 +13,7 @@ export const profileDefaultValues: ProfileFormValues = {
   phone: "+62 812 5555 2401",
   availability: profile.availability,
   primaryCta: "Open the project archive",
+  profilePhotoUrl: null,
   socialLinks: profile.socialLinks.map((link) => ({
     label: link.label,
     href: link.href,

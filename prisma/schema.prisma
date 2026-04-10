@@ -121,18 +121,18 @@ model Message {
 }
 
 model Testimonial {
-  id        String              @id @default(cuid())
-  name      String
-  role      String
-  company   String?
-  message   String
-  rating    Int
-  relation  TestimonialRelation
-  status    TestimonialStatus   @default(PENDING)
-  featured  Boolean             @default(false)
+  id         String              @id @default(cuid())
+  name       String
+  role       String
+  company    String?
+  message    String
+  rating     Int
+  relation   TestimonialRelation
+  status     TestimonialStatus   @default(PENDING)
+  featured   Boolean             @default(false)
   reviewedAt DateTime?
-  createdAt DateTime            @default(now())
-  updatedAt DateTime            @updatedAt
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
 
   @@index([status])
   @@index([featured])
@@ -164,6 +164,41 @@ model ResumeAsset {
   updatedAt     DateTime @updatedAt
 
   @@map("resumeAsset")
+}
+
+model ProfileContent {
+  id              String   @id @default(cuid())
+  storageKey      String   @unique @default("primary")
+  fullName        String
+  headline        String
+  shortIntro      String
+  about           String
+  location        String
+  email           String
+  phone           String
+  availability    String
+  primaryCta      String
+  profilePhotoUrl String?
+  socialLinks     Json
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("profileContent")
+}
+
+model Skill {
+  id        String   @id @default(cuid())
+  name      String
+  category  String
+  level     String
+  featured  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([featured])
+  @@index([category, featured])
+  @@map("skill")
 }
 
 enum MessageStatus {

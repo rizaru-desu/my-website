@@ -10,8 +10,10 @@ import { EditorialCard } from "@/components/ui/editorial-card";
 import { Input } from "@/components/ui/input";
 import { SectionShell } from "@/components/ui/section-shell";
 import { Separator } from "@/components/ui/separator";
+import { SocialLinkIcon } from "@/components/social-link-icon";
 import { Textarea } from "@/components/ui/textarea";
-import { profile } from "@/lib/mock-content";
+import { usePublicProfile } from "@/lib/profile-client";
+import type { PublicProfileRecord } from "@/lib/profile.shared";
 import {
   contactSchema,
   type ContactFormValues,
@@ -72,7 +74,13 @@ function FieldError({
   return <p className="text-sm font-semibold leading-6 text-accent-red">{message}</p>;
 }
 
-export function ContactSection() {
+export function ContactSection({
+  initialProfile,
+}: {
+  initialProfile?: PublicProfileRecord;
+}) {
+  const liveProfile = usePublicProfile();
+  const profile = initialProfile ?? liveProfile;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionState, setSubmissionState] = useState<SubmissionState>({
     tone: "idle",
@@ -184,6 +192,7 @@ export function ContactSection() {
                 rel={link.href.startsWith("http") ? "noreferrer" : undefined}
                 className="button-link"
               >
+                <SocialLinkIcon href={link.href} label={link.label} />
                 {link.label}
               </a>
             ))}

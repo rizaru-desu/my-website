@@ -1,33 +1,38 @@
 import Link from "next/link";
 
-import { skillSeedRecords } from "@/app/admin/skills/skill.default-values";
 import { BlogCard } from "@/components/blog-card";
 import { ContactSection } from "@/components/contact-section";
+import { ProfileAvatar } from "@/components/profile-avatar";
 import { ProjectCard } from "@/components/project-card";
 import { TestimonialCarousel } from "@/components/testimonial-carousel";
 import { Badge } from "@/components/ui/badge";
 import { EditorialCard } from "@/components/ui/editorial-card";
 import { SectionShell } from "@/components/ui/section-shell";
 import { StatTile } from "@/components/ui/stat-tile";
+import { getPublicProfileContent } from "@/lib/profile";
+import { getPublicSkills } from "@/lib/skills";
 import { getPublicHomepageTestimonials } from "@/lib/testimonials";
 import {
   featuredPosts,
   featuredProjects,
-  profile,
 } from "@/lib/mock-content";
 
 export default async function Home() {
-  const testimonials = await getPublicHomepageTestimonials();
+  const [testimonials, profile, skills] = await Promise.all([
+    getPublicHomepageTestimonials(),
+    getPublicProfileContent(),
+    getPublicSkills(),
+  ]);
   const groupedSkills = Array.from(
-    skillSeedRecords.reduce((map, skill) => {
+    skills.reduce((map, skill) => {
       const existingGroup = map.get(skill.values.category) ?? [];
       existingGroup.push(skill);
       map.set(skill.values.category, existingGroup);
       return map;
-    }, new Map<string, typeof skillSeedRecords>()),
+    }, new Map<string, typeof skills>()),
   );
 
-  const totalFeaturedSkills = skillSeedRecords.filter(
+  const totalFeaturedSkills = skills.filter(
     (skill) => skill.values.featured,
   ).length;
 
@@ -56,7 +61,7 @@ export default async function Home() {
               </div>
               <div className="flex flex-wrap gap-4">
                 <Link href="/projects" className="button-link">
-                  View Projects
+                  {profile.primaryCta}
                 </Link>
                 <Link href="/resume" className="button-link button-link-blue">
                   Read Resume
@@ -70,7 +75,15 @@ export default async function Home() {
               </div>
             </div>
             <EditorialCard accent="blue" className="relative space-y-5">
-              <Badge variant="blue">Public Meets Workspace</Badge>
+              <div className="flex items-start justify-between gap-4">
+                <Badge variant="blue">Public Meets Workspace</Badge>
+                <ProfileAvatar
+                  name={profile.name}
+                  src={profile.profilePhotoUrl}
+                  className="h-24 w-24 rounded-[24px]"
+                  fallbackClassName="text-4xl"
+                />
+              </div>
               <h2 className="font-display text-4xl uppercase leading-none text-ink">
                 {profile.tagline}
               </h2>
@@ -161,7 +174,7 @@ export default async function Home() {
                 aligned instead of drifting into separate content structures.
               </p>
               <div className="flex flex-wrap gap-2">
-                {skillSeedRecords
+                {skills
                   .filter((skill) => skill.values.featured)
                   .map((skill) => (
                     <Badge key={skill.id} variant="cream">
@@ -332,7 +345,7 @@ export default async function Home() {
           </EditorialCard>
         </SectionShell>
 
-        <ContactSection />
+        <ContactSection initialProfile={profile} />
 
         <section className="surface-panel surface-panel-red paper-grid overflow-hidden">
           <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">

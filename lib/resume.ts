@@ -4,6 +4,9 @@ import { createHash, randomUUID } from "node:crypto";
 import { ZodError } from "zod";
 
 import { auth } from "@/lib/auth";
+import { education, experiences } from "@/lib/mock-content";
+import { hasPersistedProfileContentCoverage } from "@/lib/profile";
+import { hasPersistedSkillsCoverage } from "@/lib/skills";
 import {
   isMissingCvDownloadLogTableError,
   isMissingResumeAssetTableError,
@@ -40,6 +43,12 @@ type DashboardResumeDownloadAnalytics = {
     value: number;
   }>;
   summary: string;
+};
+
+type DashboardResumeSyncMetric = {
+  change: string;
+  note: string;
+  value: string;
 };
 
 type ResumeDownloadRedirect =
@@ -304,6 +313,32 @@ function getResumeDownloadUrlFromEnv() {
   }
 
   return explicitUrl;
+}
+
+function hasExperienceResumeCoverage() {
+  return (
+    experiences.length > 0 &&
+    experiences.every(
+      (item) =>
+        item.role.trim() &&
+        item.company.trim() &&
+        item.period.trim() &&
+        item.summary.trim(),
+    )
+  );
+}
+
+function hasEducationResumeCoverage() {
+  return (
+    education.length > 0 &&
+    education.every(
+      (item) =>
+        item.degree.trim() &&
+        item.school.trim() &&
+        item.period.trim() &&
+        item.description.trim(),
+    )
+  );
 }
 
 function inferResumeFileName(downloadUrl: string) {
@@ -691,4 +726,84 @@ export async function getDashboardResumeDownloadAnalytics(
 
     throw error;
   }
+}
+
+export async function getDashboardResumeSyncMetric(): Promise<DashboardResumeSyncMetric> {
+  const [resumeAsset, hasProfileCoverage, hasSkillsCoverage] = await Promise.all([
+    getAdminResumeAsset(),
+    hasPersistedProfileContentCoverage(),
+    hasPersistedSkillsCoverage(),
+  ]);
+
+  const checks = [
+    {
+      label: "resume asset",
+      passed: resumeAsset.source === "database",
+      partial: resumeAsset.source === "env",
+      weight: 30,
+    },
+    {
+      label: "profile",
+      passed: hasProfileCoverage,
+      partial: false,
+      weight: 25,
+    },
+    {
+      label: "experience",
+      passed: hasExperienceResumeCoverage(),
+      partial: false,
+      weight: 20,
+    },
+    {
+      label: "education",
+      passed: hasEducationResumeCoverage(),
+      partial: false,
+      weight: 10,
+    },
+    {
+      label: "skills",
+      passed: hasSkillsCoverage,
+      partial: false,
+      weight: 15,
+    },
+  ];
+
+  const score = checks.reduce((total, check) => {
+    if (check.passed) {
+      return total + check.weight;
+    }
+
+    if (check.partial) {
+      return total + Math.round(check.weight * 0.65);
+    }
+
+    return total;
+  }, 0);
+
+  const missing = checks.filter((check) => !check.passed && !check.partial);
+
+  if (score >= 100) {
+    return {
+      change: "Database live",
+      note: "Public profile, skills, education, experience, and CV delivery are aligned.",
+      value: "100%",
+    };
+  }
+
+  if (resumeAsset.source === "env" && missing.length === 0) {
+    return {
+      change: "Env fallback",
+      note: "Resume content is aligned, but the CV file still relies on the environment fallback.",
+      value: `${score}%`,
+    };
+  }
+
+  return {
+    change: missing.length > 0 ? `${missing.length} gaps left` : "Needs review",
+    note:
+      missing.length > 0
+        ? `Finish ${missing.map((item) => item.label).join(", ")} coverage to fully align the resume workflow.`
+        : "Resume content exists, but the delivery setup still needs a final review.",
+    value: `${score}%`,
+  };
 }

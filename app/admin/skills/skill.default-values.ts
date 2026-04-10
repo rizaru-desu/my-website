@@ -1,11 +1,7 @@
 import { skillGroups } from "@/lib/mock-content";
+import type { SkillRecord } from "@/lib/skills.shared";
 
 import type { SkillFormValues, SkillLevel } from "./skill.schema";
-
-export type SkillRecord = {
-  id: string;
-  values: SkillFormValues;
-};
 
 const mockLevels: SkillLevel[] = ["advanced", "intermediate", "advanced", "beginner"];
 
@@ -20,7 +16,10 @@ export function createSkillDefaultValues(): SkillFormValues {
 
 export const skillSeedRecords: SkillRecord[] = skillGroups.flatMap((group, groupIndex) =>
   group.skills.map((skill, skillIndex) => ({
+    createdAt: new Date(0).toISOString(),
     id: `skill-${group.title.toLowerCase().replace(/\s+/g, "-")}-${skill.toLowerCase().replace(/\s+/g, "-")}`,
+    source: "fallback",
+    updatedAt: new Date(0).toISOString(),
     values: {
       name: skill,
       category: group.title,

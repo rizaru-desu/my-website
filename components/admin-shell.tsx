@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
+import { ProfileAvatar } from "@/components/profile-avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import {
@@ -31,7 +32,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { authClient } from "@/lib/auth-client";
-import { profile } from "@/lib/mock-content";
+import { usePublicProfile } from "@/lib/profile-client";
 import { cn } from "@/lib/utils";
 
 type AdminLink = {
@@ -49,6 +50,7 @@ const adminLinks = [
     label: "Profile",
     short: "02",
     compactLabel: "PROF",
+    architectOnly: true,
   },
   {
     href: "/admin/projects",
@@ -61,6 +63,7 @@ const adminLinks = [
     label: "Skills",
     short: "04",
     compactLabel: "SKILLS",
+    architectOnly: true,
   },
   { href: "/admin/blog", label: "Blog", short: "05", compactLabel: "BLOG" },
   {
@@ -130,13 +133,18 @@ function getUserInitials(name: string | null | undefined, email: string | null |
 }
 
 function PublicProfileCard({ onNavigate }: { onNavigate?: () => void }) {
+  const profile = usePublicProfile();
+
   return (
     <Card accent="cream" className="space-y-4">
       <CardContent className="space-y-4 ">
         <div className="flex items-start gap-4 text-neutral-700">
-          <div className="grid h-16 w-16 shrink-0 place-items-center rounded-[22px] border-[3px] border-panel bg-accent-red font-display text-2xl uppercase text-white shadow-[5px_5px_0_var(--panel)]">
-            RA
-          </div>
+          <ProfileAvatar
+            name={profile.name}
+            src={profile.profilePhotoUrl}
+            className="h-16 w-16 rounded-[22px] border-panel bg-accent-red text-white shadow-[5px_5px_0_var(--panel)]"
+            fallbackClassName="text-2xl"
+          />
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-neutral-500">
               Public Profile

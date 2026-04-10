@@ -30,6 +30,14 @@ export function isMissingResumeAssetTableError(error: unknown) {
   return isMissingRelationError(error, "resumeAsset");
 }
 
+export function isMissingProfileContentTableError(error: unknown) {
+  return isMissingRelationError(error, "profileContent");
+}
+
+export function isMissingSkillTableError(error: unknown) {
+  return isMissingRelationError(error, "skill");
+}
+
 export function isPrismaConnectionError(error: unknown) {
   if (
     error instanceof Prisma.PrismaClientInitializationError ||

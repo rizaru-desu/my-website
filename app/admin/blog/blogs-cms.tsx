@@ -1,5 +1,6 @@
 "use client";
 
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -13,15 +14,25 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-
+import { authClient } from "@/lib/auth-client";
 import {
-  blogSeedRecords,
-  createBlogDefaultValues,
-  formatBlogUpdatedAt,
-  type BlogRecord,
-} from "./blog.default-values";
+  canManageBlogPost,
+  type AdminBlogRecord,
+  type BlogPermissionSet,
+} from "@/lib/blog.shared";
+
+import { createBlogDefaultValues } from "./blog.default-values";
+import { BlogCommentsPanel } from "./blog-comments-panel";
 import { BlogEditorPanel } from "./blog-editor-panel";
 import { BlogList } from "./blog-list";
+import {
+  adminBlogQueryKey,
+  createAdminBlogRequest,
+  deleteAdminBlogRequest,
+  duplicateAdminBlogRequest,
+  fetchAdminBlogPosts,
+  updateAdminBlogRequest,
+} from "./blog.queries";
 import type { BlogFormValues } from "./blog.schema";
 
 type EditorState =
@@ -35,33 +46,55 @@ type FlashState = {
   tone: "blue" | "red" | "cream";
 };
 
-function createBlogId(slug: string) {
-  return `post-${slug}-${Date.now()}`;
+type BlogsCmsProps = {
+  currentUserName: string;
+  permissions: BlogPermissionSet;
+};
+
+function canEditPost(permissions: BlogPermissionSet, post: AdminBlogRecord) {
+  if (!canManageBlogPost(permissions, post, "update")) {
+    return false;
+  }
+
+  if (post.values.status === "published") {
+    return canManageBlogPost(permissions, post, "publish");
+  }
+
+  if (post.values.status === "archived") {
+    return permissions.canDelete;
+  }
+
+  return true;
 }
 
-function createDuplicateValues(post: BlogRecord): BlogFormValues {
-  return {
-    ...post.values,
-    title: `${post.values.title} Copy`,
-    slug: `${post.values.slug}-copy`,
-    featured: false,
-    status: "draft",
-    publishDate: "",
-  };
+function getAllowedStatuses(permissions: BlogPermissionSet) {
+  if (permissions.canDelete) {
+    return ["draft", "published", "archived"] as const;
+  }
+
+  if (permissions.canPublish) {
+    return ["draft", "published"] as const;
+  }
+
+  return ["draft"] as const;
 }
 
-export function BlogsCms() {
-  const [items, setItems] = useState(blogSeedRecords);
-  const [isLoading, setIsLoading] = useState(true);
+export function BlogsCms({ currentUserName, permissions }: BlogsCmsProps) {
+  const queryClient = useQueryClient();
   const [editorState, setEditorState] = useState<EditorState>(null);
-  const [postPendingDelete, setPostPendingDelete] = useState<BlogRecord | null>(null);
+  const [postPendingDelete, setPostPendingDelete] = useState<AdminBlogRecord | null>(null);
+  const [postPendingDiscussion, setPostPendingDiscussion] = useState<AdminBlogRecord | null>(null);
   const [flash, setFlash] = useState<FlashState | null>(null);
-
-  useEffect(() => {
-    const timeout = window.setTimeout(() => setIsLoading(false), 650);
-
-    return () => window.clearTimeout(timeout);
-  }, []);
+  const {
+    data: items = [],
+    error,
+    isFetching,
+    isLoading,
+  } = useQuery({
+    queryFn: fetchAdminBlogPosts,
+    queryKey: adminBlogQueryKey,
+    refetchOnWindowFocus: false,
+  });
 
   useEffect(() => {
     if (!flash) {
@@ -81,44 +114,138 @@ export function BlogsCms() {
     return items.find((item) => item.id === editorState.postId) ?? null;
   }, [editorState, items]);
 
-  const editorDefaultValues = editingPost?.values ?? createBlogDefaultValues();
+  const clientPermissions = useMemo<BlogPermissionSet>(() => {
+    if (!permissions.role) {
+      return permissions;
+    }
 
-  async function handleSubmit(values: BlogFormValues) {
-    await new Promise((resolve) => setTimeout(resolve, 800));
-
-    if (editorState?.mode === "edit" && editingPost) {
-      setItems((currentItems) =>
-        currentItems.map((item) =>
-          item.id === editingPost.id
-            ? {
-                ...item,
-                values,
-                lastUpdated: formatBlogUpdatedAt(),
-              }
-            : item,
-        ),
-      );
-
-      setFlash({
-        title: "Post updated",
-        detail: `${values.title} was saved to the local editorial board.`,
-        tone: "blue",
-      });
-    } else {
-      setItems((currentItems) => [
-        {
-          id: createBlogId(values.slug),
-          values,
-          lastUpdated: formatBlogUpdatedAt(),
+    const checkArticle = (
+      action: "create" | "delete" | "draft" | "publish" | "read" | "update",
+    ) =>
+      authClient.admin.checkRolePermission({
+        permissions: {
+          article: [action],
         },
-        ...currentItems,
-      ]);
+        role: permissions.role as "apprentice" | "architect" | "artisan" | "curator",
+      });
 
+    const checkComment = (action: "delete" | "moderate" | "read") =>
+      authClient.admin.checkRolePermission({
+        permissions: {
+          comment: [action],
+        },
+        role: permissions.role as "apprentice" | "architect" | "artisan" | "curator",
+      });
+
+    return {
+      ...permissions,
+      canCreate: permissions.canCreate && checkArticle("create"),
+      canDelete: permissions.canDelete && checkArticle("delete"),
+      canDeleteComments: permissions.canDeleteComments && checkComment("delete"),
+      canDraft: permissions.canDraft && checkArticle("draft"),
+      canModerateComments:
+        permissions.canModerateComments && checkComment("moderate"),
+      canPublish: permissions.canPublish && checkArticle("publish"),
+      canRead: permissions.canRead && checkArticle("read"),
+      canReadComments: permissions.canReadComments && checkComment("read"),
+      canUpdate: permissions.canUpdate && checkArticle("update"),
+    };
+  }, [permissions]);
+  const editorDefaultValues = editingPost?.values ?? createBlogDefaultValues(currentUserName);
+  const allowedStatuses = getAllowedStatuses(clientPermissions);
+  const createMutation = useMutation({
+    mutationFn: createAdminBlogRequest,
+    onSuccess: async (result) => {
       setFlash({
+        detail: result.message,
         title: "Post created",
-        detail: `${values.title} was added to the article workspace.`,
         tone: "red",
       });
+      await queryClient.invalidateQueries({ queryKey: adminBlogQueryKey });
+    },
+    onError: (mutationError) => {
+      setFlash({
+        detail:
+          mutationError instanceof Error
+            ? mutationError.message
+            : "The blog post could not be created right now.",
+        title: "Create failed",
+        tone: "red",
+      });
+    },
+  });
+  const updateMutation = useMutation({
+    mutationFn: updateAdminBlogRequest,
+    onSuccess: async (result) => {
+      setFlash({
+        detail: result.message,
+        title: "Post updated",
+        tone: "blue",
+      });
+      await queryClient.invalidateQueries({ queryKey: adminBlogQueryKey });
+    },
+    onError: (mutationError) => {
+      setFlash({
+        detail:
+          mutationError instanceof Error
+            ? mutationError.message
+            : "The blog post could not be updated right now.",
+        title: "Update failed",
+        tone: "red",
+      });
+    },
+  });
+  const deleteMutation = useMutation({
+    mutationFn: deleteAdminBlogRequest,
+    onSuccess: async (result) => {
+      setFlash({
+        detail: result.message,
+        title: "Post removed",
+        tone: "cream",
+      });
+      await queryClient.invalidateQueries({ queryKey: adminBlogQueryKey });
+    },
+    onError: (mutationError) => {
+      setFlash({
+        detail:
+          mutationError instanceof Error
+            ? mutationError.message
+            : "The blog post could not be deleted right now.",
+        title: "Delete failed",
+        tone: "red",
+      });
+    },
+  });
+  const duplicateMutation = useMutation({
+    mutationFn: duplicateAdminBlogRequest,
+    onSuccess: async (result) => {
+      setFlash({
+        detail: result.message,
+        title: "Post duplicated",
+        tone: "blue",
+      });
+      await queryClient.invalidateQueries({ queryKey: adminBlogQueryKey });
+    },
+    onError: (mutationError) => {
+      setFlash({
+        detail:
+          mutationError instanceof Error
+            ? mutationError.message
+            : "The blog post could not be duplicated right now.",
+        title: "Duplicate failed",
+        tone: "red",
+      });
+    },
+  });
+
+  async function handleSubmit(values: BlogFormValues) {
+    if (editorState?.mode === "edit" && editingPost) {
+      await updateMutation.mutateAsync({
+        id: editingPost.id,
+        values,
+      });
+    } else {
+      await createMutation.mutateAsync(values);
     }
 
     setEditorState(null);
@@ -129,16 +256,7 @@ export function BlogsCms() {
       return;
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 450));
-
-    setItems((currentItems) =>
-      currentItems.filter((item) => item.id !== postPendingDelete.id),
-    );
-    setFlash({
-      title: "Post removed",
-      detail: `${postPendingDelete.values.title} was removed from the local editorial board.`,
-      tone: "cream",
-    });
+    await deleteMutation.mutateAsync(postPendingDelete.id);
     setPostPendingDelete(null);
 
     if (editorState?.mode === "edit" && editorState.postId === postPendingDelete.id) {
@@ -146,22 +264,8 @@ export function BlogsCms() {
     }
   }
 
-  function handleDuplicatePost(post: BlogRecord) {
-    const duplicatedValues = createDuplicateValues(post);
-
-    setItems((currentItems) => [
-      {
-        id: createBlogId(duplicatedValues.slug),
-        values: duplicatedValues,
-        lastUpdated: formatBlogUpdatedAt(),
-      },
-      ...currentItems,
-    ]);
-    setFlash({
-      title: "Post duplicated",
-      detail: `${post.values.title} was copied into a new draft story.`,
-      tone: "blue",
-    });
+  async function handleDuplicatePost(post: AdminBlogRecord) {
+    await duplicateMutation.mutateAsync(post.id);
   }
 
   return (
@@ -178,17 +282,53 @@ export function BlogsCms() {
         </Card>
       ) : null}
 
+      {error ? (
+        <Card accent="red">
+          <CardContent className="space-y-2">
+            <Badge variant="red">Blog Unavailable</Badge>
+            <CardTitle>The editorial database could not be loaded.</CardTitle>
+            <CardDescription>
+              {error instanceof Error
+                ? error.message
+                : "The blog board could not be loaded right now."}
+            </CardDescription>
+          </CardContent>
+        </Card>
+      ) : null}
+
       <BlogList
         items={items}
-        isLoading={isLoading}
-        onAddPost={() => setEditorState({ mode: "create" })}
-        onEditPost={(post) => setEditorState({ mode: "edit", postId: post.id })}
-        onDeletePost={(post) => setPostPendingDelete(post)}
+        isLoading={isLoading || isFetching}
+        permissions={clientPermissions}
+        onAddPost={() => {
+          if (clientPermissions.canCreate) {
+            setEditorState({ mode: "create" });
+          }
+        }}
+        onEditPost={(post) => {
+          if (canEditPost(clientPermissions, post)) {
+            setEditorState({ mode: "edit", postId: post.id });
+          }
+        }}
+        onDeletePost={(post) => {
+          if (canManageBlogPost(clientPermissions, post, "delete")) {
+            setPostPendingDelete(post);
+          }
+        }}
         onDuplicatePost={handleDuplicatePost}
+        onOpenComments={(post) => {
+          if (clientPermissions.canReadComments) {
+            setPostPendingDiscussion(post);
+          }
+        }}
       />
 
       <BlogEditorPanel
         open={Boolean(editorState)}
+        allowedStatuses={allowedStatuses}
+        canDelete={
+          editingPost ? canManageBlogPost(clientPermissions, editingPost, "delete") : false
+        }
         mode={editorState?.mode ?? "create"}
         defaultValues={editorDefaultValues}
         onOpenChange={(open) => {
@@ -197,7 +337,11 @@ export function BlogsCms() {
           }
         }}
         onCancel={() => setEditorState(null)}
-        onDelete={editingPost ? () => setPostPendingDelete(editingPost) : undefined}
+        onDelete={
+          editingPost && canManageBlogPost(clientPermissions, editingPost, "delete")
+            ? () => setPostPendingDelete(editingPost)
+            : undefined
+        }
         onSubmit={handleSubmit}
       />
 
@@ -215,7 +359,7 @@ export function BlogsCms() {
             <DialogTitle>Remove this post from the article workspace?</DialogTitle>
             <DialogDescription>
               {postPendingDelete
-                ? `${postPendingDelete.values.title} will disappear from the local editorial board. This is UI-only and not persisted anywhere.`
+                ? `${postPendingDelete.values.title} will be removed from the persisted editorial database.`
                 : "Confirm removal of the selected post entry."}
             </DialogDescription>
           </DialogHeader>
@@ -223,12 +367,28 @@ export function BlogsCms() {
             <Button type="button" variant="muted" onClick={() => setPostPendingDelete(null)}>
               Cancel
             </Button>
-            <Button type="button" variant="ink" onClick={handleConfirmDelete}>
-              Delete Post
+            <Button
+              type="button"
+              variant="ink"
+              onClick={handleConfirmDelete}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? "Deleting..." : "Delete Post"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <BlogCommentsPanel
+        open={Boolean(postPendingDiscussion)}
+        permissions={clientPermissions}
+        post={postPendingDiscussion}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPostPendingDiscussion(null);
+          }
+        }}
+      />
     </div>
   );
 }

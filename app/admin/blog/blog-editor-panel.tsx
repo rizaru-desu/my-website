@@ -17,6 +17,8 @@ import { BlogForm } from "./blog-form";
 import type { BlogFormValues } from "./blog.schema";
 
 type BlogEditorPanelProps = {
+  allowedStatuses: ReadonlyArray<BlogFormValues["status"]>;
+  canDelete: boolean;
   defaultValues: BlogFormValues;
   mode: "create" | "edit";
   open: boolean;
@@ -41,6 +43,8 @@ function clampWidth(nextWidth: number, viewportWidth: number) {
 }
 
 export function BlogEditorPanel({
+  allowedStatuses,
+  canDelete,
   defaultValues,
   mode,
   open,
@@ -49,8 +53,25 @@ export function BlogEditorPanel({
   onDelete,
   onSubmit,
 }: BlogEditorPanelProps) {
-  const [panelWidth, setPanelWidth] = useState(480);
-  const [isEntered, setIsEntered] = useState(false);
+  const [panelWidth, setPanelWidth] = useState(() => {
+    if (typeof window === "undefined") {
+      return 480;
+    }
+
+    const savedWidth = window.localStorage.getItem(BLOG_EDITOR_WIDTH_KEY);
+
+    if (!savedWidth) {
+      return clampWidth(480, window.innerWidth);
+    }
+
+    const parsedWidth = Number(savedWidth);
+
+    if (!Number.isFinite(parsedWidth)) {
+      return clampWidth(480, window.innerWidth);
+    }
+
+    return clampWidth(parsedWidth, window.innerWidth);
+  });
   const [isResizing, setIsResizing] = useState(false);
   const pointerOffsetRef = useRef(0);
 
@@ -59,41 +80,8 @@ export function BlogEditorPanel({
       return;
     }
 
-    const savedWidth = window.localStorage.getItem(BLOG_EDITOR_WIDTH_KEY);
-
-    if (!savedWidth) {
-      setPanelWidth(clampWidth(480, window.innerWidth));
-      return;
-    }
-
-    const parsedWidth = Number(savedWidth);
-
-    if (!Number.isFinite(parsedWidth)) {
-      setPanelWidth(clampWidth(480, window.innerWidth));
-      return;
-    }
-
-    setPanelWidth(clampWidth(parsedWidth, window.innerWidth));
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
     window.localStorage.setItem(BLOG_EDITOR_WIDTH_KEY, String(panelWidth));
   }, [panelWidth]);
-
-  useEffect(() => {
-    if (!open) {
-      setIsEntered(false);
-      return;
-    }
-
-    const frame = window.requestAnimationFrame(() => setIsEntered(true));
-
-    return () => window.cancelAnimationFrame(frame);
-  }, [open]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -145,7 +133,7 @@ export function BlogEditorPanel({
       <SheetContent
         className={cn(
           "max-w-none overflow-hidden p-0 transition-[transform,opacity] duration-200 ease-out",
-          isEntered ? "translate-x-0 opacity-100" : "translate-x-6 opacity-0",
+          open ? "translate-x-0 opacity-100" : "translate-x-6 opacity-0",
         )}
         style={{
           width: panelWidth,
@@ -181,13 +169,15 @@ export function BlogEditorPanel({
               </SheetTitle>
               <SheetDescription>
                 Mirroring the projects workflow with a resizable editorial drawer,
-                structured metadata fields, and local-only publishing controls.
+                structured metadata fields, and role-aware publishing controls.
               </SheetDescription>
             </SheetHeader>
 
             <Separator />
 
             <BlogForm
+              allowedStatuses={allowedStatuses}
+              canDelete={canDelete}
               defaultValues={defaultValues}
               mode={mode}
               onCancel={onCancel}

@@ -4,10 +4,10 @@ import { useState } from "react";
 
 import { BlogCard } from "@/components/blog-card";
 import { Badge } from "@/components/ui/badge";
-import type { BlogPost } from "@/lib/mock-content";
+import type { PublicBlogSummary } from "@/lib/blog.shared";
 
 type BlogFilterProps = {
-  posts: BlogPost[];
+  posts: PublicBlogSummary[];
 };
 
 export function BlogFilter({ posts }: BlogFilterProps) {
@@ -36,7 +36,7 @@ export function BlogFilter({ posts }: BlogFilterProps) {
         <div className="mt-6 flex flex-wrap items-center gap-3 border-t-[3px] border-dashed border-ink/30 pt-6">
           <Badge variant="cream">{filteredPosts.length} visible stories</Badge>
           <p className="text-sm text-ink/70">
-            Filtered instantly on the client with no search backend.
+            Filtered instantly on the client by tag for quick editorial scanning.
           </p>
         </div>
       </div>

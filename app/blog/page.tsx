@@ -4,10 +4,14 @@ import { BlogFilter } from "@/components/blog-filter";
 import { Badge } from "@/components/ui/badge";
 import { EditorialCard } from "@/components/ui/editorial-card";
 import { PageHero } from "@/components/ui/page-hero";
-import { blogPosts, featuredPosts } from "@/lib/mock-content";
+import { getFeaturedPublicBlogPosts, getPublicBlogPosts } from "@/lib/blog";
 
-export default function BlogPage() {
-  const leadPost = featuredPosts[0]!;
+export default async function BlogPage() {
+  const [featuredPosts, allPosts] = await Promise.all([
+    getFeaturedPublicBlogPosts(1),
+    getPublicBlogPosts(),
+  ]);
+  const leadPost = featuredPosts[0] ?? allPosts[0] ?? null;
 
   return (
     <div className="px-4 pb-6 pt-8 sm:px-6 sm:pt-10">
@@ -27,34 +31,47 @@ export default function BlogPage() {
           </div>
         </PageHero>
 
-        <EditorialCard accent="blue" className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
-          <div className="space-y-4">
-            <Badge variant="blue">Featured Article</Badge>
-            <div className="space-y-3">
-              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-ink/60">
-                {leadPost.date} • {leadPost.readingTime}
-              </p>
-              <h2 className="font-display text-5xl uppercase leading-none text-ink">
-                {leadPost.title}
-              </h2>
-              <p className="max-w-3xl text-base leading-7 text-ink/80">
-                {leadPost.summary}
-              </p>
+        {leadPost ? (
+          <EditorialCard accent="blue" className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
+            <div className="space-y-4">
+              <Badge variant="blue">Featured Article</Badge>
+              <div className="space-y-3">
+                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-ink/60">
+                  {leadPost.publishDateLabel} • {leadPost.readingTime}
+                </p>
+                <h2 className="font-display text-5xl uppercase leading-none text-ink">
+                  {leadPost.title}
+                </h2>
+                <p className="max-w-3xl text-base leading-7 text-ink/80">
+                  {leadPost.excerpt}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {leadPost.tags.map((tag) => (
+                  <Badge key={tag} variant="cream">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {leadPost.tags.map((tag) => (
-                <Badge key={tag} variant="cream">
-                  {tag}
-                </Badge>
-              ))}
-            </div>
-          </div>
-          <Link href={`/blog/${leadPost.slug}`} className="button-link">
-            Read Feature
-          </Link>
-        </EditorialCard>
+            <Link href={`/blog/${leadPost.slug}`} className="button-link">
+              Read Feature
+            </Link>
+          </EditorialCard>
+        ) : (
+          <EditorialCard accent="cream" className="space-y-4">
+            <Badge variant="cream">No Published Stories</Badge>
+            <h2 className="font-display text-4xl uppercase leading-none text-ink">
+              The public archive is waiting for its first published article.
+            </h2>
+            <p className="max-w-3xl text-base leading-7 text-ink/80">
+              Publish a story from the admin workspace to light up the featured article
+              rail and the full blog archive.
+            </p>
+          </EditorialCard>
+        )}
 
-        <BlogFilter posts={blogPosts} />
+        <BlogFilter posts={allPosts} />
       </div>
     </div>
   );

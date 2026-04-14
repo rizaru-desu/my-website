@@ -9,16 +9,17 @@ import { Badge } from "@/components/ui/badge";
 import { EditorialCard } from "@/components/ui/editorial-card";
 import { SectionShell } from "@/components/ui/section-shell";
 import { StatTile } from "@/components/ui/stat-tile";
+import { getFeaturedPublicBlogPosts } from "@/lib/blog";
 import { getPublicProfileContent } from "@/lib/profile";
 import { getPublicSkills } from "@/lib/skills";
 import { getPublicHomepageTestimonials } from "@/lib/testimonials";
 import {
-  featuredPosts,
   featuredProjects,
 } from "@/lib/mock-content";
 
 export default async function Home() {
-  const [testimonials, profile, skills] = await Promise.all([
+  const [featuredPosts, testimonials, profile, skills] = await Promise.all([
+    getFeaturedPublicBlogPosts(2),
     getPublicHomepageTestimonials(),
     getPublicProfileContent(),
     getPublicSkills(),
@@ -290,9 +291,22 @@ export default async function Home() {
           description="Writing focuses on portfolio strategy, premium UI choices, and product communication."
           contentClassName="grid gap-6 lg:grid-cols-2"
         >
-          {featuredPosts.map((post) => (
-            <BlogCard key={post.slug} post={post} />
-          ))}
+          {featuredPosts.length > 0 ? (
+            featuredPosts.map((post) => (
+              <BlogCard key={post.slug} post={post} />
+            ))
+          ) : (
+            <EditorialCard accent="cream" className="space-y-4 lg:col-span-2">
+              <Badge variant="cream">No Published Stories</Badge>
+              <h3 className="font-display text-4xl uppercase leading-none text-ink">
+                The writing shelf is waiting for its first published article.
+              </h3>
+              <p className="text-sm leading-7 text-ink/76">
+                Publish a story from the admin blog workspace to feature it here on the
+                public homepage.
+              </p>
+            </EditorialCard>
+          )}
         </SectionShell>
 
         <SectionShell

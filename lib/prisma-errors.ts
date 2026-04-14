@@ -38,6 +38,14 @@ export function isMissingSkillTableError(error: unknown) {
   return isMissingRelationError(error, "skill");
 }
 
+export function isMissingBlogPostTableError(error: unknown) {
+  return isMissingRelationError(error, "blogPost");
+}
+
+export function isMissingBlogCommentTableError(error: unknown) {
+  return isMissingRelationError(error, "blogComment");
+}
+
 export function isPrismaConnectionError(error: unknown) {
   if (
     error instanceof Prisma.PrismaClientInitializationError ||

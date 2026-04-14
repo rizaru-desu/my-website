@@ -136,6 +136,109 @@ const testimonialSeeds = [
     featured: false,
   },
 ];
+const blogSeeds = [
+  {
+    slug: "designing-editorial-rhythm-in-a-portfolio",
+    title: "Designing Editorial Rhythm in a Portfolio",
+    excerpt:
+      "A practical look at how spacing, proof, and sequencing can make portfolio writing feel sharper before a recruiter reads every line.",
+    category: "Field Notes",
+    tags: ["Portfolio", "Content Strategy", "UX Writing"],
+    coverImagePlaceholder: "Editorial rhythm cover",
+    status: "PUBLISHED",
+    featured: true,
+    publishDate: new Date("2026-04-09T00:00:00.000Z"),
+    readingTime: "6 min read",
+    seoTitle: "Designing Editorial Rhythm in a Portfolio",
+    seoDescription:
+      "How to structure portfolio writing so each section earns attention and supports faster credibility.",
+    content: `# Designing Editorial Rhythm in a Portfolio
+
+Strong portfolio writing is not only about saying smart things. It is also about controlling pace, emphasis, and proof so the reader never has to wonder where the signal is.
+
+![Pinned notes and layout sketches](https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1400&q=80)
+
+## Start with a strong editorial spine
+
+The best portfolio pages feel edited, not merely filled. Each section should answer one useful question: what changed, why it mattered, and what makes the work believable.
+
+- Lead with the outcome before the process
+- Keep one idea per section
+- Let evidence arrive at regular intervals
+
+> Readers trust momentum when the writing keeps paying off.
+
+## Map the reading flow before polishing copy
+
+A quick diagram helps you see whether the page escalates cleanly from context to proof.
+
+\`\`\`mermaid
+flowchart TD
+  A[Hero claim] --> B[Project context]
+  B --> C[Constraints]
+  C --> D[Key decisions]
+  D --> E[Outcome proof]
+  E --> F[Reflection]
+\`\`\`
+
+## Use image moments with purpose
+
+An image works best when it lands next to a specific point. Instead of treating visuals like decoration, use them to reset attention and reinforce a claim the paragraph just made.
+
+## End with an earned takeaway
+
+Close the story with the principle you would reuse on the next project. That final reflection makes the article feel intentional rather than abruptly complete.`,
+  },
+  {
+    slug: "using-diagrams-to-explain-product-decisions",
+    title: "Using Diagrams to Explain Product Decisions",
+    excerpt:
+      "A lightweight editorial pattern for turning messy product tradeoffs into diagrams and annotated visuals that teams can scan quickly.",
+    category: "Systems Thinking",
+    tags: ["Mermaid", "Product Design", "Communication"],
+    coverImagePlaceholder: "Decision diagram cover",
+    status: "PUBLISHED",
+    featured: true,
+    publishDate: new Date("2026-04-11T00:00:00.000Z"),
+    readingTime: "7 min read",
+    seoTitle: "Using Diagrams to Explain Product Decisions",
+    seoDescription:
+      "How a simple diagram plus one supporting image can make product decision writing faster to review and easier to trust.",
+    content: `# Using Diagrams to Explain Product Decisions
+
+Product writing gets clearer when you turn hidden tradeoffs into visible structure. A small diagram can often replace two paragraphs of abstract explanation.
+
+## Show the decision path, not only the final answer
+
+When stakeholders only see the conclusion, they often reopen questions that were already settled. Diagrams help preserve the reasoning path.
+
+\`\`\`mermaid
+graph LR
+  A[User friction reported] --> B{Is the issue recurring?}
+  B -- Yes --> C[Audit the current flow]
+  B -- No --> D[Capture and monitor]
+  C --> E{Can copy solve it?}
+  E -- Yes --> F[Ship messaging update]
+  E -- No --> G[Redesign interaction]
+\`\`\`
+
+## Pair diagrams with one concrete visual
+
+The diagram explains the logic. The image gives the decision a real surface and helps the article feel grounded in actual product work.
+
+![Annotated interface planning session](https://images.unsplash.com/photo-1496171367470-9ed9a91ea931?auto=format&fit=crop&w=1400&q=80)
+
+## Keep the explanation lean
+
+After the diagram and image, the writing only needs to clarify the sharpest tradeoffs:
+
+- what changed
+- what stayed constrained
+- what the team learned
+
+That rhythm keeps the article readable while still showing strategic depth.`,
+  },
+];
 
 if (!databaseUrl) {
   throw new Error("DATABASE_URL is required.");
@@ -320,6 +423,49 @@ async function upsertTestimonialSeeds() {
   }
 }
 
+async function upsertBlogSeeds(userId) {
+  for (const post of blogSeeds) {
+    await prisma.blogPost.upsert({
+      where: {
+        slug: post.slug,
+      },
+      create: {
+        authorName: name,
+        authorUserId: userId,
+        category: post.category,
+        content: post.content,
+        coverImagePlaceholder: post.coverImagePlaceholder,
+        excerpt: post.excerpt,
+        featured: post.featured,
+        publishDate: post.publishDate,
+        readingTime: post.readingTime,
+        seoDescription: post.seoDescription,
+        seoTitle: post.seoTitle,
+        slug: post.slug,
+        status: post.status,
+        tags: post.tags,
+        title: post.title,
+      },
+      update: {
+        authorName: name,
+        authorUserId: userId,
+        category: post.category,
+        content: post.content,
+        coverImagePlaceholder: post.coverImagePlaceholder,
+        excerpt: post.excerpt,
+        featured: post.featured,
+        publishDate: post.publishDate,
+        readingTime: post.readingTime,
+        seoDescription: post.seoDescription,
+        seoTitle: post.seoTitle,
+        status: post.status,
+        tags: post.tags,
+        title: post.title,
+      },
+    });
+  }
+}
+
 try {
   if (!process.env.SEED_USER_EMAIL || !process.env.SEED_USER_PASSWORD) {
     console.log(
@@ -339,6 +485,7 @@ try {
 
   const result = await upsertCredentialAccount();
   await upsertTestimonialSeeds();
+  await upsertBlogSeeds(result.userId);
   console.log(JSON.stringify(result, null, 2));
 } finally {
   await prisma.$disconnect();

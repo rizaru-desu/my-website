@@ -12,6 +12,7 @@ import { auth } from "@/lib/auth";
 import { getDashboardMessageAnalytics } from "@/lib/messages";
 import { getAdminProfileContent } from "@/lib/profile";
 import { formatProfileUpdatedAt } from "@/lib/profile.shared";
+import { getProjectDashboardSummary, ProjectsStorageError } from "@/lib/projects";
 import { getDashboardResumeSyncMetric } from "@/lib/resume";
 import { getAdminSkills } from "@/lib/skills";
 import {
@@ -46,14 +47,26 @@ export default async function AdminDashboardPage() {
   const session = await auth.api.getSession({
     headers: requestHeaders,
   });
-  const [messageAnalytics, profileContent, resumeSyncMetric, skills] = await Promise.all([
+  const [messageAnalytics, profileContent, resumeSyncMetric, skills, projectSummaryResult] =
+    await Promise.all([
     getDashboardMessageAnalytics(),
     getAdminProfileContent(),
     getDashboardResumeSyncMetric(),
     getAdminSkills(),
-  ]);
+    getProjectDashboardSummary()
+      .then((summary) => ({ error: null, summary }))
+      .catch((error) => ({
+        error:
+          error instanceof ProjectsStorageError
+            ? error.message
+            : "The live projects archive is unavailable right now.",
+        summary: null,
+      })),
+    ]);
   const canManageResume = session?.user?.role === "architect";
   const canManageProfile = session?.user?.role === "architect";
+  const projectSummary = projectSummaryResult.summary;
+  const projectSummaryError = projectSummaryResult.error;
   const hasProfilePhoto = Boolean(profileContent.profilePhotoUrl);
   const profileSourceLabel =
     profileContent.source === "database" ? "Database Saved" : "Fallback Content";
@@ -83,8 +96,28 @@ export default async function AdminDashboardPage() {
       : hasDatabaseSkills
         ? "Database Live"
         : "Fallback Seed";
+  const projectStatusLabel = projectSummaryError
+    ? "Unavailable"
+    : !projectSummary || projectSummary.totalCount === 0
+      ? "Empty Archive"
+      : projectSummary.unpublishedCount > 0
+        ? "Needs review"
+        : "Live";
   const syncedMetrics = adminMetrics.map((metric) =>
-    metric.label === "Messages Flagged"
+    metric.label === "Published Projects"
+      ? {
+          ...metric,
+          change: projectSummaryError
+            ? "Storage issue"
+            : `${projectSummary?.featuredCount ?? 0} featured`,
+          note: projectSummaryError
+            ? projectSummaryError
+            : `${projectSummary?.totalCount ?? 0} total projects with ${
+                projectSummary?.unpublishedCount ?? 0
+              } not yet published.`,
+          value: String(projectSummary?.publishedCount ?? 0).padStart(2, "0"),
+        }
+      : metric.label === "Messages Flagged"
       ? {
           ...metric,
           change: messageAnalytics.metric.change,
@@ -108,6 +141,12 @@ export default async function AdminDashboardPage() {
             itemCount: `${profileContent.socialLinks.length} links`,
             status: profileContent.source === "database" ? "Live" : "Fallback",
           }
+        : collection.title === "Projects Library"
+          ? {
+              ...collection,
+              itemCount: `${projectSummary?.totalCount ?? 0} entries`,
+              status: projectStatusLabel,
+            }
         : collection,
     ),
     {
@@ -132,6 +171,16 @@ export default async function AdminDashboardPage() {
               ? "Database live"
               : "Needs first save",
         }
+      : item.title === "Project refresh"
+        ? {
+            ...item,
+            note: projectSummaryError
+              ? projectSummaryError
+              : `${projectSummary?.publishedCount ?? 0} published, ${
+                  projectSummary?.unpublishedCount ?? 0
+                } awaiting review, ${projectSummary?.featuredCount ?? 0} featured.`,
+            status: projectStatusLabel,
+          }
       : item,
   ).concat({
     note: `${featuredSkills.length} featured, ${advancedSkills.length} advanced, ${skillCategories.length} categories.`,

@@ -15,15 +15,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import type { ProjectRecord } from "./project.default-values";
 import { ProjectTablePagination } from "./project-table-pagination";
+import type { AdminProjectRecord } from "@/lib/projects.shared";
 
 type ProjectTableProps = {
   hasFilters: boolean;
   isLoading: boolean;
   onAddProject: () => void;
   onClearFilters: () => void;
-  table: TanstackTable<ProjectRecord>;
+  table: TanstackTable<AdminProjectRecord>;
 };
 
 export function ProjectTable({

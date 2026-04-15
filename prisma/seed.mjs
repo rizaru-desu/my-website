@@ -3,6 +3,7 @@ import "dotenv/config";
 import argon2 from "argon2";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
+import { projectSeeds } from "./project-seeds.mjs";
 
 const databaseUrl = process.env.DATABASE_URL;
 const fallbackEmail = "admin@portfolio.local";
@@ -466,6 +467,42 @@ async function upsertBlogSeeds(userId) {
   }
 }
 
+async function upsertProjectSeeds() {
+  for (const project of projectSeeds) {
+    await prisma.project.upsert({
+      where: {
+        slug: project.slug,
+      },
+      create: project,
+      update: {
+        accent: project.accent,
+        category: project.category,
+        challenge: project.challenge,
+        clientOrCompany: project.clientOrCompany,
+        duration: project.duration,
+        featured: project.featured,
+        gallery: project.gallery,
+        githubUrl: project.githubUrl,
+        impactBullets: project.impactBullets,
+        impactSummary: project.impactSummary,
+        metrics: project.metrics,
+        outcome: project.outcome,
+        process: project.process,
+        projectUrl: project.projectUrl,
+        role: project.role,
+        sortOrder: project.sortOrder,
+        status: project.status,
+        summary: project.summary,
+        tags: project.tags,
+        techStack: project.techStack,
+        thumbnailPlaceholder: project.thumbnailPlaceholder,
+        title: project.title,
+        year: project.year,
+      },
+    });
+  }
+}
+
 try {
   if (!process.env.SEED_USER_EMAIL || !process.env.SEED_USER_PASSWORD) {
     console.log(
@@ -486,6 +523,7 @@ try {
   const result = await upsertCredentialAccount();
   await upsertTestimonialSeeds();
   await upsertBlogSeeds(result.userId);
+  await upsertProjectSeeds();
   console.log(JSON.stringify(result, null, 2));
 } finally {
   await prisma.$disconnect();

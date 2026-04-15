@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { unstable_noStore as noStore } from "next/cache";
 
 import { BlogCard } from "@/components/blog-card";
 import { ContactSection } from "@/components/contact-section";
@@ -11,19 +12,32 @@ import { SectionShell } from "@/components/ui/section-shell";
 import { StatTile } from "@/components/ui/stat-tile";
 import { getFeaturedPublicBlogPosts } from "@/lib/blog";
 import { getPublicProfileContent } from "@/lib/profile";
+import { getFeaturedPublicProjects, ProjectsStorageError } from "@/lib/projects";
 import { getPublicSkills } from "@/lib/skills";
 import { getPublicHomepageTestimonials } from "@/lib/testimonials";
-import {
-  featuredProjects,
-} from "@/lib/mock-content";
+
+function getHomeProjectError(error: unknown) {
+  if (error instanceof ProjectsStorageError) {
+    return error.message;
+  }
+
+  return "Featured projects could not be loaded right now.";
+}
 
 export default async function Home() {
-  const [featuredPosts, testimonials, profile, skills] = await Promise.all([
+  noStore();
+
+  const [featuredPosts, testimonials, profile, skills, featuredProjectsResult] = await Promise.all([
     getFeaturedPublicBlogPosts(2),
     getPublicHomepageTestimonials(),
     getPublicProfileContent(),
     getPublicSkills(),
+    getFeaturedPublicProjects(3)
+      .then((projects) => ({ error: null, projects }))
+      .catch((error) => ({ error: getHomeProjectError(error), projects: [] })),
   ]);
+  const featuredProjects = featuredProjectsResult.projects;
+  const featuredProjectsError = featuredProjectsResult.error;
   const groupedSkills = Array.from(
     skills.reduce((map, skill) => {
       const existingGroup = map.get(skill.values.category) ?? [];
@@ -280,9 +294,29 @@ export default async function Home() {
           description="Selected projects are framed to surface role, impact, and delivery logic before the deeper details."
           contentClassName="grid gap-6 lg:grid-cols-3"
         >
-          {featuredProjects.map((project) => (
-            <ProjectCard key={project.slug} project={project} />
-          ))}
+          {featuredProjectsError ? (
+            <EditorialCard accent="red" className="space-y-4 lg:col-span-3">
+              <Badge variant="red">Projects Unavailable</Badge>
+              <h3 className="font-display text-4xl uppercase leading-none text-ink">
+                Featured project data is temporarily unavailable.
+              </h3>
+              <p className="text-sm leading-7 text-ink/76">{featuredProjectsError}</p>
+            </EditorialCard>
+          ) : featuredProjects.length > 0 ? (
+            featuredProjects.map((project) => (
+              <ProjectCard key={project.slug} project={project} />
+            ))
+          ) : (
+            <EditorialCard accent="cream" className="space-y-4 lg:col-span-3">
+              <Badge variant="cream">No Featured Projects</Badge>
+              <h3 className="font-display text-4xl uppercase leading-none text-ink">
+                Publish and feature a project to highlight it on the homepage.
+              </h3>
+              <p className="text-sm leading-7 text-ink/76">
+                The featured rail updates directly from the live projects archive.
+              </p>
+            </EditorialCard>
+          )}
         </SectionShell>
 
         <SectionShell

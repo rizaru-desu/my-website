@@ -38,6 +38,10 @@ export function isMissingSkillTableError(error: unknown) {
   return isMissingRelationError(error, "skill");
 }
 
+export function isMissingProjectTableError(error: unknown) {
+  return isMissingRelationError(error, "project");
+}
+
 export function isMissingBlogPostTableError(error: unknown) {
   return isMissingRelationError(error, "blogPost");
 }

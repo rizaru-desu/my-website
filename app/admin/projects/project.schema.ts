@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+export const projectAccentValues = ["red", "blue", "cream"] as const;
 export const projectStatusValues = ["draft", "published", "archived"] as const;
 
 const optionalUrlSchema = z
@@ -22,6 +23,38 @@ const bulletItemSchema = z
   .min(4, "Each bullet should be at least 4 characters.")
   .max(120, "Keep each bullet under 120 characters.");
 
+const longTextSchema = z
+  .string()
+  .trim()
+  .min(20, "Add a little more detail.")
+  .max(500, "Keep this section under 500 characters.");
+
+export const projectMetricSchema = z.object({
+  label: z
+    .string()
+    .trim()
+    .min(2, "Metric label is required.")
+    .max(40, "Keep metric labels under 40 characters."),
+  value: z
+    .string()
+    .trim()
+    .min(1, "Metric value is required.")
+    .max(32, "Keep metric values under 32 characters."),
+});
+
+export const projectGalleryItemSchema = z.object({
+  title: z
+    .string()
+    .trim()
+    .min(2, "Gallery title is required.")
+    .max(48, "Keep gallery titles under 48 characters."),
+  caption: z
+    .string()
+    .trim()
+    .min(12, "Gallery captions should be at least 12 characters.")
+    .max(180, "Keep gallery captions under 180 characters."),
+});
+
 export const projectSchema = z.object({
   title: z
     .string()
@@ -41,11 +74,6 @@ export const projectSchema = z.object({
     .trim()
     .min(20, "Summary should be at least 20 characters.")
     .max(180, "Summary should stay under 180 characters."),
-  description: z
-    .string()
-    .trim()
-    .min(80, "Description should be at least 80 characters.")
-    .max(1800, "Description should stay under 1800 characters."),
   category: z
     .string()
     .trim()
@@ -71,6 +99,12 @@ export const projectSchema = z.object({
     .trim()
     .min(2, "Role is required.")
     .max(60, "Keep the role under 60 characters."),
+  duration: z
+    .string()
+    .trim()
+    .min(2, "Duration is required.")
+    .max(40, "Keep the duration under 40 characters."),
+  accent: z.enum(projectAccentValues),
   thumbnailPlaceholder: z
     .string()
     .trim()
@@ -78,6 +112,11 @@ export const projectSchema = z.object({
     .max(80, "Keep the thumbnail note under 80 characters."),
   projectUrl: optionalUrlSchema,
   githubUrl: optionalUrlSchema,
+  impactSummary: z
+    .string()
+    .trim()
+    .min(20, "Impact summary should be at least 20 characters.")
+    .max(220, "Keep the impact summary under 220 characters."),
   impactBullets: z
     .array(bulletItemSchema)
     .min(1, "Add at least one impact bullet.")
@@ -86,6 +125,26 @@ export const projectSchema = z.object({
     .array(listItemSchema)
     .min(1, "Add at least one tech stack item.")
     .max(10, "Keep the tech stack to ten items or fewer."),
+  challenge: longTextSchema,
+  process: z
+    .array(
+      z
+        .string()
+        .trim()
+        .min(8, "Each process step should be at least 8 characters.")
+        .max(220, "Keep each process step under 220 characters."),
+    )
+    .min(1, "Add at least one process step.")
+    .max(8, "Keep process steps to eight items or fewer."),
+  outcome: longTextSchema,
+  metrics: z
+    .array(projectMetricSchema)
+    .min(1, "Add at least one metric.")
+    .max(6, "Keep metrics to six items or fewer."),
+  gallery: z
+    .array(projectGalleryItemSchema)
+    .min(1, "Add at least one gallery item.")
+    .max(6, "Keep gallery items to six or fewer."),
   sortOrder: z
     .string()
     .trim()
@@ -95,5 +154,8 @@ export const projectSchema = z.object({
     ),
 });
 
+export type ProjectAccent = (typeof projectAccentValues)[number];
+export type ProjectMetricInput = z.infer<typeof projectMetricSchema>;
+export type ProjectGalleryItemInput = z.infer<typeof projectGalleryItemSchema>;
 export type ProjectStatus = (typeof projectStatusValues)[number];
 export type ProjectFormValues = z.infer<typeof projectSchema>;

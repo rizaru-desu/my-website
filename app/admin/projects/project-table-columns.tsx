@@ -12,8 +12,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-import type { ProjectRecord } from "./project.default-values";
 import type { ProjectStatus } from "./project.schema";
+import { formatProjectUpdatedAt, type AdminProjectRecord } from "@/lib/projects.shared";
 
 function getStatusBadgeVariant(status: ProjectStatus) {
   if (status === "published") {
@@ -30,7 +30,7 @@ function getStatusBadgeVariant(status: ProjectStatus) {
 function SortableHeader({
   column,
   label,
-}: HeaderContext<ProjectRecord, unknown> & { label: string }) {
+}: HeaderContext<AdminProjectRecord, unknown> & { label: string }) {
   const sortDirection = column.getIsSorted();
 
   return (
@@ -51,7 +51,7 @@ function SortableHeader({
   );
 }
 
-const lastUpdatedSortingFn: SortingFn<ProjectRecord> = (rowA, rowB, columnId) => {
+const updatedAtSortingFn: SortingFn<AdminProjectRecord> = (rowA, rowB, columnId) => {
   const first = Date.parse(rowA.getValue<string>(columnId));
   const second = Date.parse(rowB.getValue<string>(columnId));
 
@@ -59,16 +59,16 @@ const lastUpdatedSortingFn: SortingFn<ProjectRecord> = (rowA, rowB, columnId) =>
 };
 
 type ProjectTableColumnsOptions = {
-  onDeleteProject: (project: ProjectRecord) => void;
-  onDuplicateProject: (project: ProjectRecord) => void;
-  onEditProject: (project: ProjectRecord) => void;
+  onDeleteProject: (project: AdminProjectRecord) => void;
+  onDuplicateProject: (project: AdminProjectRecord) => void;
+  onEditProject: (project: AdminProjectRecord) => void;
 };
 
 export function createProjectTableColumns({
   onDeleteProject,
   onDuplicateProject,
   onEditProject,
-}: ProjectTableColumnsOptions): ColumnDef<ProjectRecord>[] {
+}: ProjectTableColumnsOptions): ColumnDef<AdminProjectRecord>[] {
   return [
     {
       id: "title",
@@ -144,11 +144,15 @@ export function createProjectTableColumns({
       ),
     },
     {
-      id: "lastUpdated",
-      accessorFn: (row) => row.lastUpdated,
+      id: "updatedAt",
+      accessorFn: (row) => row.updatedAt,
       header: (context) => <SortableHeader {...context} label="Last Updated" />,
-      cell: ({ row }) => <span className="text-sm text-ink/72">{row.original.lastUpdated}</span>,
-      sortingFn: lastUpdatedSortingFn,
+      cell: ({ row }) => (
+        <span className="text-sm text-ink/72">
+          {formatProjectUpdatedAt(row.original.updatedAt)}
+        </span>
+      ),
+      sortingFn: updatedAtSortingFn,
     },
     {
       id: "actions",

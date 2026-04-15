@@ -203,6 +203,43 @@ model Skill {
   @@map("skill")
 }
 
+model Project {
+  id                   String        @id @default(cuid())
+  title                String
+  slug                 String        @unique
+  summary              String
+  category             String
+  year                 String
+  clientOrCompany      String
+  role                 String
+  duration             String
+  thumbnailPlaceholder String
+  projectUrl           String?
+  githubUrl            String?
+  impactSummary        String
+  tags                 String[]
+  impactBullets        String[]
+  techStack            String[]
+  process              String[]
+  featured             Boolean       @default(false)
+  status               ProjectStatus @default(DRAFT)
+  sortOrder            Int?
+  accent               ProjectAccent @default(RED)
+  challenge            String
+  outcome              String
+  metrics              Json
+  gallery              Json
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  @@index([status])
+  @@index([featured])
+  @@index([sortOrder])
+  @@index([status, featured, sortOrder])
+  @@index([updatedAt])
+  @@map("project")
+}
+
 model BlogPost {
   id                    String         @id @default(cuid())
   title                 String
@@ -286,6 +323,18 @@ enum BlogPostStatus {
   DRAFT
   PUBLISHED
   ARCHIVED
+}
+
+enum ProjectStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ProjectAccent {
+  RED
+  BLUE
+  CREAM
 }
 
 enum BlogCommentStatus {

@@ -212,150 +212,6 @@ export const skillGroups: SkillGroup[] = [
   },
 ];
 
-export const projects: Project[] = [
-  {
-    slug: "pulse-cms-portfolio",
-    title: "Pulse CMS Portfolio",
-    summary:
-      "A recruiter-friendly portfolio and content studio concept built to let one creator manage projects, writing, and proof without touching code.",
-    category: "Portfolio Platform",
-    year: "2026",
-    impact:
-      "Clarified content hierarchy and reduced admin friction in the core showcase experience.",
-    client: "Personal Product Concept",
-    role: "Product Designer + Full-Stack Engineer",
-    duration: "4 weeks",
-    techStack: ["Next.js", "TypeScript", "Tailwind CSS", "Mock CMS"],
-    accent: "red",
-    metrics: [
-      { label: "Public sections", value: "6" },
-      { label: "Mock entities", value: "24" },
-      { label: "Hero scan time", value: "<10 sec" },
-    ],
-    challenge:
-      "Most portfolio sites either look generic or bury proof beneath decoration. The goal was to create a high-energy system that still lets a recruiter understand value quickly.",
-    process: [
-      "Mapped the recruiter journey into three beats: credibility, work evidence, and contact confidence.",
-      "Built a visual language around poster-style framing, heavy borders, and headline hierarchy instead of illustration.",
-      "Structured mock CMS content to prove the site could scale into admin-managed projects, writing, and resume updates later.",
-    ],
-    outcome:
-      "The final concept balances personality with trust. It feels distinct on first glance but remains easy to scan, making it better suited for real hiring contexts than a novelty portfolio.",
-    gallery: [
-      {
-        title: "Hero Composition",
-        caption:
-          "Layered title treatment, stat strip, and recruiter CTAs tuned for fast first impressions.",
-      },
-      {
-        title: "Content Grid",
-        caption:
-          "Poster-like cards that make projects feel curated rather than dumped into a list.",
-      },
-      {
-        title: "Resume Surface",
-        caption:
-          "A print-inspired resume page translated into a modern web layout.",
-      },
-    ],
-    featured: true,
-  },
-  {
-    slug: "northstar-sales-kit",
-    title: "Northstar Sales Kit",
-    summary:
-      "A bold B2B microsite system that helped a sales team package product proof, feature stories, and launch decks into one coherent destination.",
-    category: "Marketing Experience",
-    year: "2025",
-    impact:
-      "Turned fragmented launch assets into one faster-to-share sales narrative.",
-    client: "Northstar SaaS",
-    role: "Frontend Lead",
-    duration: "3 weeks",
-    techStack: ["Next.js", "Contentful", "Framer Motion", "Figma"],
-    accent: "blue",
-    metrics: [
-      { label: "Launch modules", value: "12" },
-      { label: "Stakeholder teams", value: "4" },
-      { label: "Review cycles", value: "2" },
-    ],
-    challenge:
-      "Sales enablement material existed across decks, docs, and demo notes. The challenge was to make it persuasive without becoming another cluttered marketing page.",
-    process: [
-      "Created a modular page architecture with interchangeable proof panels and quote blocks.",
-      "Used a highly visible typography system so new messaging could be swapped in quickly without redesigning each page.",
-      "Focused on making each section self-sufficient for quick skim reading in live calls.",
-    ],
-    outcome:
-      "The team gained a cleaner way to present launch messaging with fewer ad hoc deck requests and a more consistent demo narrative.",
-    gallery: [
-      {
-        title: "Launch Header",
-        caption:
-          "Oversized message framing with support metrics placed directly beneath.",
-      },
-      {
-        title: "Proof Modules",
-        caption:
-          "Reusable cards for adoption stats, customer quotes, and comparison points.",
-      },
-      {
-        title: "CTA Rail",
-        caption:
-          "A sticky side rail to help sales teams jump between deck, demo, and docs.",
-      },
-    ],
-    featured: true,
-  },
-  {
-    slug: "atlas-ops-dashboard",
-    title: "Atlas Ops Dashboard",
-    summary:
-      "An operations dashboard concept that translates complex workflow health into a friendlier, more explainable interface for non-technical managers.",
-    category: "Internal Tooling",
-    year: "2024",
-    impact:
-      "Improved information density while reducing the intimidation factor of enterprise UI.",
-    client: "Atlas Logistics",
-    role: "UI Engineer",
-    duration: "5 weeks",
-    techStack: ["React", "TypeScript", "Charts", "Design Tokens"],
-    accent: "cream",
-    metrics: [
-      { label: "Workflow views", value: "8" },
-      { label: "Data states", value: "30+" },
-      { label: "Key audience", value: "Ops Leads" },
-    ],
-    challenge:
-      "The product needed to present complex operational signals without looking hostile to stakeholders who only visited it a few times a week.",
-    process: [
-      "Reframed the information architecture around exceptions, trends, and direct next actions.",
-      "Used strong panels and color markers to separate healthy state from intervention state at a glance.",
-      "Tested a lighter content tone to make the tooling feel less punitive and more collaborative.",
-    ],
-    outcome:
-      "The resulting direction made the dashboard easier to walk through in meetings and gave the team a better foundation for future admin tooling.",
-    gallery: [
-      {
-        title: "Signal Board",
-        caption:
-          "Exception-first layout that brings urgent states above the fold.",
-      },
-      {
-        title: "Trend Story",
-        caption:
-          "Charts framed as management summaries rather than isolated metrics.",
-      },
-      {
-        title: "Action Detail",
-        caption:
-          "A clearer detail view with contextual notes and linked ownership.",
-      },
-    ],
-    featured: false,
-  },
-];
-
 export const blogPosts: BlogPost[] = [
   {
     slug: "designing-portfolios-for-recruiter-attention",
@@ -601,7 +457,7 @@ export const adminCollections: AdminCollection[] = [
   },
   {
     title: "Projects Library",
-    itemCount: `${projects.length} entries`,
+    itemCount: "Live archive",
     status: "In Review",
     description:
       "Case-study cards, detail-page content, metrics, and featured ordering for the public work archive.",
@@ -661,13 +517,8 @@ export const adminQueue = [
   },
 ];
 
-export function getProjectBySlug(slug: string) {
-  return projects.find((project) => project.slug === slug);
-}
-
 export function getBlogPostBySlug(slug: string) {
   return blogPosts.find((post) => post.slug === slug);
 }
 
-export const featuredProjects = projects.filter((project) => project.featured);
 export const featuredPosts = blogPosts.filter((post) => post.featured);

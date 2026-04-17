@@ -155,13 +155,13 @@ export function ContactSection({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-[24px] border-[3px] border-ink bg-white/75 px-4 py-4 shadow-[5px_5px_0_var(--ink)]">
+          <div className="min-w-0 rounded-[24px] border-[3px] border-ink bg-white/75 px-4 py-4 shadow-[5px_5px_0_var(--ink)]">
             <p className="text-sm font-semibold uppercase tracking-[0.22em] text-ink/58">
               Email
             </p>
             <a
               href={`mailto:${profile.email}`}
-              className="mt-3 block font-display text-2xl uppercase leading-none text-ink underline decoration-[3px] underline-offset-4"
+              className="mt-3 block max-w-full font-display text-[clamp(1.4rem,5vw,2rem)] uppercase leading-[1.02] text-ink underline decoration-[3px] underline-offset-4 [overflow-wrap:anywhere]"
             >
               {profile.email}
             </a>

@@ -9,7 +9,7 @@ artifact_path="build/${artifact_name}"
 build_timestamp="${BUILD_TIMESTAMP:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}"
 git_sha="${GIT_SHA:-unknown}"
 
-npm run build
+pnpm run build
 
 rm -rf "$release_dir"
 mkdir -p "$release_dir/.next" "build"

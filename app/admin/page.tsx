@@ -17,6 +17,29 @@ import { getProjectDashboardSummary, ProjectsStorageError } from "@/lib/projects
 import { getDashboardResumeSyncMetric } from "@/lib/resume";
 import { getAdminSkills } from "@/lib/skills";
 
+function SummaryStatCard({
+  label,
+  value,
+  valueClassName = "",
+}: {
+  label: string;
+  value: string | number;
+  valueClassName?: string;
+}) {
+  return (
+    <div className="min-w-0 rounded-[20px] border-[3px] border-ink bg-white/72 px-4 py-3 shadow-[4px_4px_0_var(--ink)]">
+      <p className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-ink/50 sm:text-xs sm:tracking-[0.18em]">
+        {label}
+      </p>
+      <p
+        className={`mt-2 font-display uppercase text-ink text-balance ${valueClassName}`.trim()}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
 function formatDashboardDate(value: string | null | undefined) {
   if (!value) {
     return "Not saved yet";
@@ -254,31 +277,22 @@ export default async function AdminDashboardPage() {
             {profileContent.shortIntro}
           </p>
 
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="min-w-0 rounded-[20px] border-[3px] border-ink bg-white/72 px-4 py-3 shadow-[4px_4px_0_var(--ink)]">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink/50">
-                Source
-              </p>
-              <p className="mt-2 font-display text-[1.35rem] uppercase leading-[0.95] text-ink wrap-anywhere sm:text-xl 2xl:text-2xl">
-                {profileSourceLabel}
-              </p>
-            </div>
-            <div className="min-w-0 rounded-[20px] border-[3px] border-ink bg-white/72 px-4 py-3 shadow-[4px_4px_0_var(--ink)]">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink/50">
-                Avatar
-              </p>
-              <p className="mt-2 font-display text-[1.35rem] uppercase leading-[0.95] text-ink wrap-anywhere sm:text-xl 2xl:text-2xl">
-                {profileStatusLabel}
-              </p>
-            </div>
-            <div className="min-w-0 rounded-[20px] border-[3px] border-ink bg-white/72 px-4 py-3 shadow-[4px_4px_0_var(--ink)]">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink/50">
-                Updated
-              </p>
-              <p className="mt-2 font-display text-[1.35rem] uppercase leading-[0.95] text-ink wrap-anywhere sm:text-xl 2xl:text-2xl">
-                {formatProfileUpdatedAt(profileContent.updatedAt)}
-              </p>
-            </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <SummaryStatCard
+              label="Source"
+              value={profileSourceLabel}
+              valueClassName="text-[1.2rem] leading-[0.95] sm:text-[1.35rem] 2xl:text-2xl"
+            />
+            <SummaryStatCard
+              label="Avatar"
+              value={profileStatusLabel}
+              valueClassName="text-[1.2rem] leading-[0.95] sm:text-[1.35rem] 2xl:text-2xl"
+            />
+            <SummaryStatCard
+              label="Updated"
+              value={formatProfileUpdatedAt(profileContent.updatedAt)}
+              valueClassName="text-[1.2rem] leading-[0.95] sm:text-[1.35rem] 2xl:text-2xl"
+            />
           </div>
 
           <div className="flex flex-wrap gap-3 pt-1">
@@ -344,39 +358,27 @@ export default async function AdminDashboardPage() {
             ) : null}
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-4">
-            <div className="min-w-0 rounded-[20px] border-[3px] border-ink bg-white/72 px-4 py-3 shadow-[4px_4px_0_var(--ink)]">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink/50">
-                Source
-              </p>
-              <p className="mt-2 font-display text-[1.2rem] uppercase leading-[0.95] text-ink wrap-anywhere">
-                {skillSourceLabel}
-              </p>
-            </div>
-            <div className="min-w-0 rounded-[20px] border-[3px] border-ink bg-white/72 px-4 py-3 shadow-[4px_4px_0_var(--ink)]">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink/50">
-                Categories
-              </p>
-              <p className="mt-2 font-display text-4xl uppercase leading-none text-ink">
-                {skillCategories.length}
-              </p>
-            </div>
-            <div className="min-w-0 rounded-[20px] border-[3px] border-ink bg-white/72 px-4 py-3 shadow-[4px_4px_0_var(--ink)]">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink/50">
-                Featured
-              </p>
-              <p className="mt-2 font-display text-4xl uppercase leading-none text-ink">
-                {featuredSkills.length}
-              </p>
-            </div>
-            <div className="min-w-0 rounded-[20px] border-[3px] border-ink bg-white/72 px-4 py-3 shadow-[4px_4px_0_var(--ink)]">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink/50">
-                Updated
-              </p>
-              <p className="mt-2 font-display text-[1.2rem] uppercase leading-[0.95] text-ink wrap-anywhere">
-                {formatDashboardDate(latestSkillUpdate?.toISOString() ?? null)}
-              </p>
-            </div>
+          <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
+            <SummaryStatCard
+              label="Source"
+              value={skillSourceLabel}
+              valueClassName="text-[1.15rem] leading-[0.95] sm:text-[1.2rem]"
+            />
+            <SummaryStatCard
+              label="Categories"
+              value={skillCategories.length}
+              valueClassName="text-4xl leading-none"
+            />
+            <SummaryStatCard
+              label="Featured"
+              value={featuredSkills.length}
+              valueClassName="text-4xl leading-none"
+            />
+            <SummaryStatCard
+              label="Updated"
+              value={formatDashboardDate(latestSkillUpdate?.toISOString() ?? null)}
+              valueClassName="text-[1.15rem] leading-[0.95] sm:text-[1.2rem]"
+            />
           </div>
 
           <div className="flex flex-wrap gap-2">

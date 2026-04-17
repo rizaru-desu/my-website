@@ -1,314 +1,107 @@
-name: Deploy Production
-
-# Required repository secrets:
-# DEPLOY_USER
-# DEPLOY_PATH
-# DEPLOY_SSH_KEY
-#
-# Optional repository secrets:
-# DEPLOY_HOST (defaults to remote.rizaru-desu.my.id)
-# DEPLOY_PORT
-# DEPLOY_KNOWN_HOSTS
-# DEPLOY_ENV_PRODUCTION
-# CF_ACCESS_CLIENT_ID
-# CF_ACCESS_CLIENT_SECRET
-#
-# Optional repository variable:
-# DEPLOY_ENV_PRODUCTION
-# DEPLOY_USE_CLOUDFLARE_TUNNEL
-# CLOUDFLARED_VERSION
-# KEEP_RELEASES
+name: Deploy to Production
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
-  group: production-deploy
+  group: deploy-production
   cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  deploy:
+    name: Build & Deploy
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment: production
-    env:
-      NODE_VERSION: "20"
-      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST || 'remote.rizaru-desu.my.id' }}
-      DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || vars.DEPLOY_PORT || '22' }}
-      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
-      KEEP_RELEASES: ${{ vars.KEEP_RELEASES }}
-      DEPLOY_USE_CLOUDFLARE_TUNNEL: ${{ vars.DEPLOY_USE_CLOUDFLARE_TUNNEL || 'true' }}
-      CLOUDFLARED_VERSION: ${{ vars.CLOUDFLARED_VERSION }}
+
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          run_install: false
+          version: 9
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
+          node-version: "20"
+          cache: "pnpm"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Generate Prisma Client
-        run: pnpx prisma generate
+      - name: prisma generate
+        run: pnpm prisma generate
+
+      - name: Build
+        run: pnpm build
         env:
-          DATABASE_URL: "postgresql://user:password@localhost:5432/db"
+          NEXT_TELEMETRY_DISABLED: "1"
 
-      - name: Compute release version
-        id: release_meta
+      - name: Prepare standalone
         run: |
-          set -euo pipefail
-          APP_VERSION="$(node -p "require('./package.json').version")"
-          SHORT_SHA="${GITHUB_SHA::7}"
-          RELEASE_VERSION="v${APP_VERSION}-build.${GITHUB_RUN_NUMBER}-${SHORT_SHA}"
-          RELEASE_NAME="release-${RELEASE_VERSION}"
-          ARTIFACT_NAME="next-standalone-${RELEASE_VERSION}.tar.gz"
-          BUILD_TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-
-          {
-            echo "app_version=${APP_VERSION}"
-            echo "short_sha=${SHORT_SHA}"
-            echo "release_version=${RELEASE_VERSION}"
-            echo "release_name=${RELEASE_NAME}"
-            echo "artifact_name=${ARTIFACT_NAME}"
-            echo "build_timestamp=${BUILD_TIMESTAMP}"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Build standalone release artifact
-        env:
-          BETTER_AUTH_SECRET: "github-actions-build-placeholder-secret"
-          BETTER_AUTH_URL: "https://build.portofolio.invalid"
-          DATABASE_URL: "postgresql://user:password@localhost:5432/db"
-          RELEASE_VERSION: ${{ steps.release_meta.outputs.release_version }}
-          NEXT_PUBLIC_APP_VERSION: ${{ steps.release_meta.outputs.release_version }}
-          GIT_SHA: ${{ github.sha }}
-          NEXT_PUBLIC_GIT_SHA: ${{ github.sha }}
-          BUILD_TIMESTAMP: ${{ steps.release_meta.outputs.build_timestamp }}
-          NEXT_PUBLIC_BUILD_TIMESTAMP: ${{ steps.release_meta.outputs.build_timestamp }}
-        run: |
-          set -euo pipefail
-          mkdir -p build
-          bash scripts/package-release.sh "${{ steps.release_meta.outputs.artifact_name }}" "${{ steps.release_meta.outputs.release_version }}"
-          test -f "build/${{ steps.release_meta.outputs.artifact_name }}"
-          ls -lah build
+          cp -r public .next/standalone/
+          mkdir -p .next/standalone/.next
+          cp -r .next/static .next/standalone/.next/
+          cp ecosystem.config.js .next/standalone/
 
       - name: Install cloudflared
-        if: ${{ env.DEPLOY_USE_CLOUDFLARE_TUNNEL == 'true' }}
         run: |
-          set -euo pipefail
-          mkdir -p "$HOME/.local/bin"
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -o cloudflared.deb
+          sudo dpkg -i cloudflared.deb
+          cloudflared version
 
-          CLOUDFLARED_DOWNLOAD_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"
-          if [ -n "${CLOUDFLARED_VERSION:-}" ] && [ "${CLOUDFLARED_VERSION}" != "latest" ]; then
-            CLOUDFLARED_DOWNLOAD_URL="https://github.com/cloudflare/cloudflared/releases/download/${CLOUDFLARED_VERSION}/cloudflared-linux-amd64"
-          fi
-
-          curl -fsSL "$CLOUDFLARED_DOWNLOAD_URL" -o "$HOME/.local/bin/cloudflared"
-          chmod +x "$HOME/.local/bin/cloudflared"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          "$HOME/.local/bin/cloudflared" --version
-
-      - name: Prepare SSH
-        env:
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+      - name: Configure SSH via Cloudflared
         run: |
-          set -euo pipefail
           mkdir -p ~/.ssh
-          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          touch ~/.ssh/known_hosts
-          chmod 644 ~/.ssh/known_hosts
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
 
-          HOST_KEY_ALIAS="deploy-target"
-          KNOWN_HOST_ALIASES="${HOST_KEY_ALIAS},${DEPLOY_HOST}"
-          if [ "${DEPLOY_PORT:-22}" != "22" ]; then
-            KNOWN_HOST_ALIASES="${KNOWN_HOST_ALIASES},[${DEPLOY_HOST}]:${DEPLOY_PORT:-22}"
-          fi
-
-          write_known_hosts() {
-            while IFS= read -r raw_line; do
-              line="${raw_line%$'\r'}"
-
-              if [ -z "$line" ]; then
-                continue
-              fi
-
-              if [ "${line#\#}" != "$line" ]; then
-                printf '%s\n' "$line" >> ~/.ssh/known_hosts
-                continue
-              fi
-
-              case "$line" in
-                ssh-*)
-                  printf '%s %s\n' "$KNOWN_HOST_ALIASES" "$line" >> ~/.ssh/known_hosts
-                  ;;
-                *)
-                  key_payload="${line#* }"
-                  if [ "$key_payload" = "$line" ]; then
-                    echo "DEPLOY_KNOWN_HOSTS contains an invalid host key entry." >&2
-                    exit 1
-                  fi
-
-                  printf '%s %s\n' "$KNOWN_HOST_ALIASES" "$key_payload" >> ~/.ssh/known_hosts
-                  ;;
-              esac
-            done <<< "$1"
-          }
-
-          if [ -n "${DEPLOY_KNOWN_HOSTS:-}" ]; then
-            write_known_hosts "$DEPLOY_KNOWN_HOSTS"
-          elif [ "${DEPLOY_USE_CLOUDFLARE_TUNNEL:-false}" = "true" ]; then
-            echo "DEPLOY_KNOWN_HOSTS secret is required when DEPLOY_USE_CLOUDFLARE_TUNNEL=true" >&2
-            exit 1
-          else
-            SCANNED_HOST_KEYS="$(
-              ssh-keyscan -p "${DEPLOY_PORT:-22}" -t rsa,ecdsa,ed25519 "$DEPLOY_HOST" 2>/dev/null
-            )"
-
-            if [ -z "$SCANNED_HOST_KEYS" ]; then
-              echo "Could not retrieve SSH host keys from ${DEPLOY_HOST}:${DEPLOY_PORT:-22}." >&2
-              exit 1
-            fi
-
-            write_known_hosts "$SCANNED_HOST_KEYS"
-          fi
-
-          if ! ssh-keygen -F "$HOST_KEY_ALIAS" -f ~/.ssh/known_hosts >/dev/null; then
-            echo "No SSH host keys were registered for ${HOST_KEY_ALIAS}." >&2
-            exit 1
-          fi
-
-          cat <<EOF > ~/.ssh/config
-          Host deploy-target
-            HostName ${DEPLOY_HOST}
-            Port ${DEPLOY_PORT:-22}
-            User ${DEPLOY_USER}
-            IdentityFile ~/.ssh/id_ed25519
+          cat > ~/.ssh/config << EOF
+          Host deploy-prod
+            HostName ${{ secrets.DEPLOY_HOST }}
+            User ${{ secrets.DEPLOY_USER }}
+            Port 7022
+            IdentityFile ~/.ssh/id_deploy
             IdentitiesOnly yes
-            BatchMode yes
-            CheckHostIP no
-            StrictHostKeyChecking yes
-            UserKnownHostsFile ~/.ssh/known_hosts
-            HostKeyAlias ${HOST_KEY_ALIAS}
+            StrictHostKeyChecking no
             ServerAliveInterval 30
             ServerAliveCountMax 3
-            LogLevel ERROR
+            ProxyCommand cloudflared access ssh --hostname %h
           EOF
-
-          if [ "${DEPLOY_USE_CLOUDFLARE_TUNNEL:-false}" = "true" ]; then
-            {
-              echo "  ProxyCommand $HOME/.local/bin/cloudflared access ssh --hostname %h"
-            } >> ~/.ssh/config
-          fi
 
           chmod 600 ~/.ssh/config
 
-      - name: Upload release artifact
-        env:
-          DEPLOY_ENV_PRODUCTION: ${{ secrets.DEPLOY_ENV_PRODUCTION || vars.DEPLOY_ENV_PRODUCTION || '' }}
-          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET || '' }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL || '' }}
-          GOOGLE_SMTP_USER: ${{ secrets.GOOGLE_SMTP_USER || vars.GOOGLE_SMTP_USER || '' }}
-          GOOGLE_APP_PASSWORD: ${{ secrets.GOOGLE_APP_PASSWORD || '' }}
-          ANALYTICS_HASH_SALT: ${{ secrets.ANALYTICS_HASH_SALT || '' }}
-          COMMENT_HASH_SALT: ${{ secrets.COMMENT_HASH_SALT || '' }}
-          BETTER_AUTH_URL: ${{ vars.BETTER_AUTH_URL || secrets.BETTER_AUTH_URL || '' }}
-          MAIL_FROM_ADDRESS: ${{ vars.MAIL_FROM_ADDRESS || secrets.MAIL_FROM_ADDRESS || '' }}
-          MAIL_FROM_NAME: ${{ vars.MAIL_FROM_NAME || secrets.MAIL_FROM_NAME || '' }}
-          REDIS_URL: ${{ vars.REDIS_URL || secrets.REDIS_URL || '' }}
-          RESUME_DOWNLOAD_URL: ${{ vars.RESUME_DOWNLOAD_URL || secrets.RESUME_DOWNLOAD_URL || '' }}
-          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+      - name: Sync build to server
         run: |
-          set -euo pipefail
-          if [ "${DEPLOY_USE_CLOUDFLARE_TUNNEL:-false}" = "true" ] && { [ -n "${CF_ACCESS_CLIENT_ID:-}" ] || [ -n "${CF_ACCESS_CLIENT_SECRET:-}" ]; }; then
-            if [ -z "${CF_ACCESS_CLIENT_ID:-}" ] || [ -z "${CF_ACCESS_CLIENT_SECRET:-}" ]; then
-              echo "CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET must both be set when using Cloudflare Access service tokens" >&2
-              exit 1
-            fi
+          rsync -az --delete \
+            --exclude='.env*' \
+            --exclude='*.log' \
+            -e "ssh" \
+            .next/standalone/ \
+            deploy-prod:/srv/www/portofolio/
 
-            export CF_ACCESS_CLIENT_ID
-            export CF_ACCESS_CLIENT_SECRET
-          fi
+      - name: Reload PM2
+        run: |
+          ssh deploy-prod << 'ENDSSH'
+          set -e
 
-          if [ -n "${DEPLOY_ENV_PRODUCTION:-}" ]; then
-            tmp_env_file="$(mktemp)"
-            trap 'rm -f "$tmp_env_file"' EXIT
-            printf '%s' "$DEPLOY_ENV_PRODUCTION" > "$tmp_env_file"
+          # MUAT NVM SECARA MANUAL
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+          # Sekarang sistem sudah kenal 'node' dan 'pm2' secara otomatis
+          cd /srv/www/portofolio
+
+          if pm2 jlist | grep -q '"name":"fbs-app"'; then
+            pm2 reload ecosystem.config.js --update-env
           else
-            tmp_env_file="$(mktemp)"
-            trap 'rm -f "$tmp_env_file"' EXIT
-
-            escape_env_value() {
-              printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
-            }
-
-            append_env_line() {
-              printf '%s="%s"\n' "$1" "$(escape_env_value "$2")" >> "$tmp_env_file"
-            }
-
-            append_env_line "BETTER_AUTH_SECRET" "${BETTER_AUTH_SECRET:-}"
-            append_env_line "BETTER_AUTH_URL" "${BETTER_AUTH_URL:-}"
-            append_env_line "DATABASE_URL" "${DATABASE_URL:-}"
-            append_env_line "GOOGLE_SMTP_USER" "${GOOGLE_SMTP_USER:-}"
-            append_env_line "GOOGLE_APP_PASSWORD" "${GOOGLE_APP_PASSWORD:-}"
-            append_env_line "MAIL_FROM_ADDRESS" "${MAIL_FROM_ADDRESS:-}"
-            append_env_line "MAIL_FROM_NAME" "${MAIL_FROM_NAME:-}"
-            append_env_line "REDIS_URL" "${REDIS_URL:-}"
-            append_env_line "ANALYTICS_HASH_SALT" "${ANALYTICS_HASH_SALT:-}"
-            append_env_line "COMMENT_HASH_SALT" "${COMMENT_HASH_SALT:-}"
-            append_env_line "RESUME_DOWNLOAD_URL" "${RESUME_DOWNLOAD_URL:-}"
+            pm2 start ecosystem.config.js
           fi
 
-          if [ -f "$tmp_env_file" ]; then
-            ssh deploy-target "mkdir -p '$DEPLOY_PATH/shared' '$DEPLOY_PATH/tmp'"
-            scp "$tmp_env_file" "deploy-target:$DEPLOY_PATH/tmp/.env.production"
-            ssh deploy-target "install -m 600 '$DEPLOY_PATH/tmp/.env.production' '$DEPLOY_PATH/shared/.env.production' && rm -f '$DEPLOY_PATH/tmp/.env.production'"
-          fi
-
-          ssh deploy-target "mkdir -p '$DEPLOY_PATH/releases' '$DEPLOY_PATH/shared' '$DEPLOY_PATH/tmp'"
-          scp "build/${{ steps.release_meta.outputs.artifact_name }}" "deploy-target:$DEPLOY_PATH/tmp/${{ steps.release_meta.outputs.artifact_name }}"
-
-      - name: Activate release
-        env:
-          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
-        run: |
-          set -euo pipefail
-          if [ "${DEPLOY_USE_CLOUDFLARE_TUNNEL:-false}" = "true" ] && { [ -n "${CF_ACCESS_CLIENT_ID:-}" ] || [ -n "${CF_ACCESS_CLIENT_SECRET:-}" ]; }; then
-            if [ -z "${CF_ACCESS_CLIENT_ID:-}" ] || [ -z "${CF_ACCESS_CLIENT_SECRET:-}" ]; then
-              echo "CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET must both be set when using Cloudflare Access service tokens" >&2
-              exit 1
-            fi
-
-            export CF_ACCESS_CLIENT_ID
-            export CF_ACCESS_CLIENT_SECRET
-          fi
-
-          ssh deploy-target \
-            "set -euo pipefail && \
-            TMP_DIR='$DEPLOY_PATH/tmp' && \
-            ARTIFACT_PATH=\"\$TMP_DIR/${{ steps.release_meta.outputs.artifact_name }}\" && \
-            STAGING_DIR=\"\$TMP_DIR/${{ steps.release_meta.outputs.release_name }}\" && \
-            RELEASE_DIR='$DEPLOY_PATH/releases/${{ steps.release_meta.outputs.release_name }}' && \
-            rm -rf \"\$STAGING_DIR\" && \
-            if [ -e \"\$RELEASE_DIR\" ]; then echo 'Release directory already exists: '\$RELEASE_DIR >&2; exit 1; fi && \
-            mkdir -p \"\$STAGING_DIR\" && \
-            tar -xzf \"\$ARTIFACT_PATH\" -C \"\$STAGING_DIR\" && \
-            mv \"\$STAGING_DIR\" \"\$RELEASE_DIR\" && \
-            chmod +x \"\$RELEASE_DIR/scripts/deploy/install-release.sh\" && \
-            KEEP_RELEASES='${KEEP_RELEASES:-5}' \"\$RELEASE_DIR/scripts/deploy/install-release.sh\" '$DEPLOY_PATH' '${{ steps.release_meta.outputs.release_name }}' && \
-            rm -f \"\$ARTIFACT_PATH\" && \
-            rmdir \"\$TMP_DIR\" 2>/dev/null || true"
+          pm2 save
+          ENDSSH

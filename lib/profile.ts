@@ -39,12 +39,14 @@ type StoredProfileContent = {
 
 const PRIMARY_PROFILE_STORAGE_KEY = "primary";
 
-const profileContentModel = (prisma as typeof prisma & {
-  profileContent: {
-    findUnique: (args: unknown) => Promise<StoredProfileContent | null>;
-    upsert: (args: unknown) => Promise<StoredProfileContent>;
-  };
-}).profileContent;
+const profileContentModel = (
+  prisma as typeof prisma & {
+    profileContent: {
+      findUnique: (args: unknown) => Promise<StoredProfileContent | null>;
+      upsert: (args: unknown) => Promise<StoredProfileContent>;
+    };
+  }
+).profileContent;
 
 export class AdminProfileAccessError extends Error {
   status: 401 | 403;
@@ -73,22 +75,24 @@ function normalizeDate(value: Date | string | null | undefined) {
 function getFallbackSocialLinks() {
   return [
     { label: "github", href: "https://github.com/rizal-achmad" },
-    { label: "linkedin", href: "https://linkedin.com/in/rizal-achmad" }
+    { label: "linkedin", href: "https://linkedin.com/in/rizal-achmad" },
   ];
 }
 
 function getFallbackAdminProfileRecord(): AdminProfileRecord {
   return {
     availability: "Available for selective 2026 opportunities",
-    about: "I build web experiences that give recruiters clarity fast. I focus on turning ambitious visual direction into UI systems that feel both memorable and maintainable for real product teams.",
-    email: "rizal@example.com",
-    fullName: "Rizal Achmad",
+    about:
+      "I build web experiences that give recruiters clarity fast. I focus on turning ambitious visual direction into UI systems that feel both memorable and maintainable for real product teams.",
+    email: "hello@rizaru-desu.my.id",
+    fullName: "Rizal Achmad Saputra",
     headline: "Full-Stack Product Engineer",
-    location: "Jakarta, Indonesia",
-    phone: "+62 812 5555 2401",
+    location: "Tangerang Selatan, Indonesia",
+    phone: "+62 816 5340 24",
     primaryCta: "View Projects",
     profilePhotoUrl: null,
-    shortIntro: "Designing fast, memorable portfolio products that feel as sharp as the work behind them.",
+    shortIntro:
+      "Designing fast, memorable portfolio products that feel as sharp as the work behind them.",
     socialLinks: getFallbackSocialLinks(),
     focus: [],
     stats: [],
@@ -150,7 +154,9 @@ function normalizeStats(value: unknown): ProfileStat[] {
     .filter((item): item is ProfileStat => Boolean(item?.label));
 }
 
-function toAdminProfileRecord(stored: StoredProfileContent): AdminProfileRecord {
+function toAdminProfileRecord(
+  stored: StoredProfileContent,
+): AdminProfileRecord {
   return {
     availability: stored.availability,
     about: stored.about,
@@ -170,7 +176,9 @@ function toAdminProfileRecord(stored: StoredProfileContent): AdminProfileRecord 
   };
 }
 
-function mergePublicProfileWithAdminRecord(record: AdminProfileRecord): PublicProfileRecord {
+function mergePublicProfileWithAdminRecord(
+  record: AdminProfileRecord,
+): PublicProfileRecord {
   return {
     availability: record.availability,
     email: record.email,
@@ -196,7 +204,10 @@ async function getStoredProfileContent() {
       },
     });
   } catch (error) {
-    if (isMissingProfileContentTableError(error) || isPrismaConnectionError(error)) {
+    if (
+      isMissingProfileContentTableError(error) ||
+      isPrismaConnectionError(error)
+    ) {
       return null;
     }
 
@@ -210,11 +221,17 @@ export async function getAdminProfileContext(requestHeaders: Headers) {
   });
 
   if (!session?.user) {
-    throw new AdminProfileAccessError(401, "You must be signed in to manage the public profile.");
+    throw new AdminProfileAccessError(
+      401,
+      "You must be signed in to manage the public profile.",
+    );
   }
 
   if (session.user.role !== "architect") {
-    throw new AdminProfileAccessError(403, "You are not allowed to manage the public profile.");
+    throw new AdminProfileAccessError(
+      403,
+      "You are not allowed to manage the public profile.",
+    );
   }
 
   return {
@@ -284,27 +301,31 @@ export async function updateAdminProfileContent(
 
     return {
       ok: true,
-      message: "Profile saved. Public identity content now reflects the latest editor changes.",
+      message:
+        "Profile saved. Public identity content now reflects the latest editor changes.",
     };
   } catch (error) {
     if (error instanceof ZodError) {
       return {
         ok: false,
-        message: error.issues[0]?.message ?? "Please review the profile form values.",
+        message:
+          error.issues[0]?.message ?? "Please review the profile form values.",
       };
     }
 
     if (isMissingProfileContentTableError(error)) {
       return {
         ok: false,
-        message: "Profile storage is not ready yet. Start the database and run `npx prisma db push` first.",
+        message:
+          "Profile storage is not ready yet. Start the database and run `npx prisma db push` first.",
       };
     }
 
     if (isPrismaConnectionError(error)) {
       return {
         ok: false,
-        message: "The database is not reachable right now. Make sure PostgreSQL is running, then try again.",
+        message:
+          "The database is not reachable right now. Make sure PostgreSQL is running, then try again.",
       };
     }
 

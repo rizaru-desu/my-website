@@ -85,6 +85,8 @@ jobs:
 
       - name: Build standalone release artifact
         env:
+          BETTER_AUTH_SECRET: "github-actions-build-placeholder-secret"
+          BETTER_AUTH_URL: "https://build.portofolio.invalid"
           DATABASE_URL: "postgresql://user:password@localhost:5432/db"
           RELEASE_VERSION: ${{ steps.release_meta.outputs.release_version }}
           NEXT_PUBLIC_APP_VERSION: ${{ steps.release_meta.outputs.release_version }}

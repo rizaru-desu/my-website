@@ -1,5 +1,5 @@
+import localFont from "next/font/local";
 import type { Metadata } from "next";
-import { Archivo_Black, Space_Grotesk } from "next/font/google";
 import type { ReactNode } from "react";
 import "@mdxeditor/editor/style.css";
 
@@ -7,15 +7,18 @@ import { AppShell } from "@/components/app-shell";
 import { QueryProvider } from "@/components/query-provider";
 import "./globals.css";
 
-const archivoBlack = Archivo_Black({
+const everettDisplay = localFont({
+  src: "./fonts/everett-medium.woff2",
   variable: "--font-display",
-  weight: "400",
-  subsets: ["latin"],
+  display: "swap",
+  adjustFontFallback: false,
 });
 
-const spaceGrotesk = Space_Grotesk({
+const everettBody = localFont({
+  src: "./fonts/everett-regular.woff2",
   variable: "--font-body",
-  subsets: ["latin"],
+  display: "swap",
+  adjustFontFallback: false,
 });
 
 export const metadata: Metadata = {
@@ -33,7 +36,7 @@ export default function RootLayout({
     <html lang="en">
       <body
         suppressHydrationWarning
-        className={`${archivoBlack.variable} ${spaceGrotesk.variable} page-shell antialiased`}
+        className={`${everettDisplay.variable} ${everettBody.variable} page-shell antialiased`}
       >
         <QueryProvider>
           <AppShell>{children}</AppShell>

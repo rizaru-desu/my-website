@@ -95,8 +95,11 @@ jobs:
           BUILD_TIMESTAMP: ${{ steps.release_meta.outputs.build_timestamp }}
           NEXT_PUBLIC_BUILD_TIMESTAMP: ${{ steps.release_meta.outputs.build_timestamp }}
         run: |
+          set -euo pipefail
           mkdir -p build
-          pnpm run package:release -- "${{ steps.release_meta.outputs.artifact_name }}" "${{ steps.release_meta.outputs.release_version }}"
+          bash scripts/package-release.sh "${{ steps.release_meta.outputs.artifact_name }}" "${{ steps.release_meta.outputs.release_version }}"
+          test -f "build/${{ steps.release_meta.outputs.artifact_name }}"
+          ls -lah build
 
       - name: Install cloudflared
         if: ${{ env.DEPLOY_USE_CLOUDFLARE_TUNNEL == 'true' }}

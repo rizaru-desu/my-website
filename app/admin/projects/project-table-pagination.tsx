@@ -11,10 +11,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-import type { ProjectRecord } from "./project.default-values";
+import type { AdminProjectRecord } from "@/lib/projects.shared";
 
 type ProjectTablePaginationProps = {
-  table: TanstackTable<ProjectRecord>;
+  table: TanstackTable<AdminProjectRecord>;
 };
 
 const pageSizeOptions = [5, 10, 20];

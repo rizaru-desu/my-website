@@ -1,5 +1,6 @@
 "use client";
 
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -14,15 +15,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-import {
-  createProjectDefaultValues,
-  formatProjectUpdatedAt,
-  projectSeedRecords,
-  type ProjectRecord,
-} from "./project.default-values";
+import { createProjectDefaultValues } from "./project.default-values";
 import { ProjectEditorSheet } from "./project-editor-sheet";
 import { ProjectList } from "./project-list";
 import type { ProjectFormValues } from "./project.schema";
+import {
+  adminProjectsQueryKey,
+  createAdminProjectRequest,
+  deleteAdminProjectRequest,
+  fetchAdminProjects,
+  updateAdminProjectRequest,
+} from "./projects.queries";
+import type { AdminProjectRecord } from "@/lib/projects.shared";
 
 type EditorState =
   | { mode: "create" }
@@ -35,15 +39,33 @@ type FlashState = {
   tone: "blue" | "red" | "cream";
 };
 
-function createProjectId(slug: string) {
-  return `project-${slug}-${Date.now()}`;
+function sanitizeDuplicateSlug(slug: string) {
+  return slug
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
-function createDuplicateValues(project: ProjectRecord): ProjectFormValues {
+function createDuplicateValues(
+  project: AdminProjectRecord,
+  items: AdminProjectRecord[],
+): ProjectFormValues {
+  const baseSlug = sanitizeDuplicateSlug(`${project.values.slug}-copy`);
+  const existingSlugs = new Set(items.map((item) => item.values.slug));
+  let nextSlug = baseSlug || "project-copy";
+  let suffix = 2;
+
+  while (existingSlugs.has(nextSlug)) {
+    nextSlug = `${baseSlug || "project-copy"}-${suffix}`;
+    suffix += 1;
+  }
+
   return {
     ...project.values,
     title: `${project.values.title} Copy`,
-    slug: `${project.values.slug}-copy`,
+    slug: nextSlug,
     featured: false,
     status: "draft",
     sortOrder: "",
@@ -51,17 +73,22 @@ function createDuplicateValues(project: ProjectRecord): ProjectFormValues {
 }
 
 export function ProjectsCms() {
-  const [items, setItems] = useState(projectSeedRecords);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [editorState, setEditorState] = useState<EditorState>(null);
-  const [projectPendingDelete, setProjectPendingDelete] = useState<ProjectRecord | null>(null);
+  const [projectPendingDelete, setProjectPendingDelete] = useState<AdminProjectRecord | null>(
+    null,
+  );
   const [flash, setFlash] = useState<FlashState | null>(null);
-
-  useEffect(() => {
-    const timeout = window.setTimeout(() => setIsLoading(false), 650);
-
-    return () => window.clearTimeout(timeout);
-  }, []);
+  const {
+    data: items = [],
+    error,
+    isFetching,
+    isLoading,
+  } = useQuery({
+    queryFn: fetchAdminProjects,
+    queryKey: adminProjectsQueryKey,
+    refetchOnWindowFocus: false,
+  });
 
   useEffect(() => {
     if (!flash) {
@@ -82,43 +109,78 @@ export function ProjectsCms() {
   }, [editorState, items]);
 
   const editorDefaultValues = editingProject?.values ?? createProjectDefaultValues();
-
-  async function handleSubmit(values: ProjectFormValues) {
-    await new Promise((resolve) => setTimeout(resolve, 800));
-
-    if (editorState?.mode === "edit" && editingProject) {
-      setItems((currentItems) =>
-        currentItems.map((item) =>
-          item.id === editingProject.id
-            ? {
-                ...item,
-                values,
-                lastUpdated: formatProjectUpdatedAt(),
-              }
-            : item,
-        ),
-      );
-
+  const createMutation = useMutation({
+    mutationFn: createAdminProjectRequest,
+    onSuccess: async (result) => {
       setFlash({
-        title: "Project updated",
-        detail: `${values.title} was saved to the local project archive.`,
-        tone: "blue",
-      });
-    } else {
-      setItems((currentItems) => [
-        {
-          id: createProjectId(values.slug),
-          values,
-          lastUpdated: formatProjectUpdatedAt(),
-        },
-        ...currentItems,
-      ]);
-
-      setFlash({
+        detail: result.message,
         title: "Project created",
-        detail: `${values.title} was added to the project directory.`,
         tone: "red",
       });
+      await queryClient.invalidateQueries({ queryKey: adminProjectsQueryKey });
+    },
+    onError: (mutationError) => {
+      setFlash({
+        detail:
+          mutationError instanceof Error
+            ? mutationError.message
+            : "The project could not be created right now.",
+        title: "Create failed",
+        tone: "red",
+      });
+    },
+  });
+  const updateMutation = useMutation({
+    mutationFn: updateAdminProjectRequest,
+    onSuccess: async (result) => {
+      setFlash({
+        detail: result.message,
+        title: "Project updated",
+        tone: "blue",
+      });
+      await queryClient.invalidateQueries({ queryKey: adminProjectsQueryKey });
+    },
+    onError: (mutationError) => {
+      setFlash({
+        detail:
+          mutationError instanceof Error
+            ? mutationError.message
+            : "The project could not be updated right now.",
+        title: "Update failed",
+        tone: "red",
+      });
+    },
+  });
+  const deleteMutation = useMutation({
+    mutationFn: deleteAdminProjectRequest,
+    onSuccess: async (result) => {
+      setFlash({
+        detail: result.message,
+        title: "Project removed",
+        tone: "cream",
+      });
+      await queryClient.invalidateQueries({ queryKey: adminProjectsQueryKey });
+    },
+    onError: (mutationError) => {
+      setFlash({
+        detail:
+          mutationError instanceof Error
+            ? mutationError.message
+            : "The project could not be deleted right now.",
+        title: "Delete failed",
+        tone: "red",
+      });
+    },
+  });
+
+  async function handleSubmit(values: ProjectFormValues) {
+    if (editorState?.mode === "edit" && editingProject) {
+      await updateMutation.mutateAsync({
+        id: editingProject.id,
+        values,
+      });
+    } else {
+      await createMutation.mutateAsync(values);
     }
 
     setEditorState(null);
@@ -129,16 +191,7 @@ export function ProjectsCms() {
       return;
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 450));
-
-    setItems((currentItems) =>
-      currentItems.filter((item) => item.id !== projectPendingDelete.id),
-    );
-    setFlash({
-      title: "Project removed",
-      detail: `${projectPendingDelete.values.title} was removed from the project view.`,
-      tone: "cream",
-    });
+    await deleteMutation.mutateAsync(projectPendingDelete.id);
     setProjectPendingDelete(null);
 
     if (
@@ -149,17 +202,9 @@ export function ProjectsCms() {
     }
   }
 
-  function handleDuplicateProject(project: ProjectRecord) {
-    const duplicatedValues = createDuplicateValues(project);
-
-    setItems((currentItems) => [
-      {
-        id: createProjectId(duplicatedValues.slug),
-        values: duplicatedValues,
-        lastUpdated: formatProjectUpdatedAt(),
-      },
-      ...currentItems,
-    ]);
+  async function handleDuplicateProject(project: AdminProjectRecord) {
+    const duplicatedValues = createDuplicateValues(project, items);
+    await createMutation.mutateAsync(duplicatedValues);
     setFlash({
       title: "Project duplicated",
       detail: `${project.values.title} was copied into a new draft entry.`,
@@ -181,9 +226,23 @@ export function ProjectsCms() {
         </Card>
       ) : null}
 
+      {error ? (
+        <Card accent="red">
+          <CardContent className="space-y-2">
+            <Badge variant="red">Projects Unavailable</Badge>
+            <CardTitle>The projects database could not be loaded.</CardTitle>
+            <CardDescription>
+              {error instanceof Error
+                ? error.message
+                : "The projects board could not be loaded right now."}
+            </CardDescription>
+          </CardContent>
+        </Card>
+      ) : null}
+
       <ProjectList
         items={items}
-        isLoading={isLoading}
+        isLoading={isLoading || isFetching}
         onAddProject={() => setEditorState({ mode: "create" })}
         onEditProject={(project) =>
           setEditorState({ mode: "edit", projectId: project.id })
@@ -222,7 +281,7 @@ export function ProjectsCms() {
             <DialogTitle>Remove this project from the workspace?</DialogTitle>
             <DialogDescription>
               {projectPendingDelete
-                ? `${projectPendingDelete.values.title} will disappear from the current project directory. This change only affects this session.`
+                ? `${projectPendingDelete.values.title} will be removed from the live project archive.`
                 : "Confirm removal of the selected project entry."}
             </DialogDescription>
           </DialogHeader>

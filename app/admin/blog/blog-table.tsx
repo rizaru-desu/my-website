@@ -14,19 +14,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import type { AdminBlogRecord } from "@/lib/blog.shared";
 
-import type { BlogRecord } from "./blog.default-values";
 import { BlogTablePagination } from "./blog-table-pagination";
 
 type BlogTableProps = {
+  canAddPost: boolean;
   hasFilters: boolean;
   isLoading: boolean;
   onAddPost: () => void;
   onClearFilters: () => void;
-  table: TanstackTable<BlogRecord>;
+  table: TanstackTable<AdminBlogRecord>;
 };
 
 export function BlogTable({
+  canAddPost,
   hasFilters,
   isLoading,
   onAddPost,
@@ -74,7 +76,7 @@ export function BlogTable({
                 Clear Filters
               </Button>
             ) : null}
-            <Button type="button" onClick={onAddPost}>
+            <Button type="button" onClick={onAddPost} disabled={!canAddPost}>
               Add First Post
             </Button>
           </div>

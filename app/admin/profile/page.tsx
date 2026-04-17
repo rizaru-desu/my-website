@@ -1,9 +1,25 @@
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+
 import { Badge } from "@/components/ui/badge";
 import { EditorialCard } from "@/components/ui/editorial-card";
+import { AdminProfileAccessError, getAdminProfileContext } from "@/lib/profile";
 
 import { ProfileForm } from "./profile-form";
 
-export default function AdminProfilePage() {
+export default async function AdminProfilePage() {
+  const requestHeaders = await headers();
+
+  try {
+    await getAdminProfileContext(requestHeaders);
+  } catch (error) {
+    if (error instanceof AdminProfileAccessError && error.status === 401) {
+      redirect("/login?redirectTo=%2Fadmin%2Fprofile");
+    }
+
+    redirect("/admin");
+  }
+
   return (
     <div className="space-y-8">
       <section className="surface-panel surface-panel-blue">
@@ -30,10 +46,10 @@ export default function AdminProfilePage() {
             </EditorialCard>
             <EditorialCard accent="red" className="space-y-3">
               <p className="text-sm font-semibold uppercase tracking-[0.22em] text-ink/60">
-                Save Mode
+                Access Scope
               </p>
               <p className="font-display text-xl uppercase leading-none text-ink">
-                Local Save State
+                Architect Only
               </p>
             </EditorialCard>
           </div>

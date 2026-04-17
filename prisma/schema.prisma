@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -12,24 +9,25 @@ datasource db {
 model User {
   id               String      @id @default(cuid())
   name             String
-  email            String
+  email            String      @unique
   emailVerified    Boolean
   image            String?
   createdAt        DateTime
   updatedAt        DateTime
-  sessions         Session[]
-  accounts         Account[]
   twoFactorEnabled Boolean?
-  username         String?     @unique
+  banExpires       DateTime?
+  banReason        String?
+  banned           Boolean?
   displayUsername  String?
   isAnonymous      Boolean?
   role             String?
-  banned           Boolean?
-  banReason        String?
-  banExpires       DateTime?
+  username         String?     @unique
+  accounts         Account[]
+  blogPosts        BlogPost[]
+  reviewedComments BlogComment[] @relation("BlogCommentReviewer")
+  sessions         Session[]
   twoFactors       TwoFactor[]
 
-  @@unique([email])
   @@map("user")
 }
 
@@ -46,16 +44,15 @@ model TwoFactor {
 model Session {
   id             String   @id @default(cuid())
   expiresAt      DateTime
-  token          String
+  token          String   @unique
   createdAt      DateTime
   updatedAt      DateTime
   ipAddress      String?
   userAgent      String?
   userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   impersonatedBy String?
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([token])
   @@map("session")
 }
 
@@ -64,7 +61,6 @@ model Account {
   accountId             String
   providerId            String
   userId                String
-  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   accessToken           String?
   refreshToken          String?
   idToken               String?
@@ -74,6 +70,7 @@ model Account {
   password              String?
   createdAt             DateTime
   updatedAt             DateTime
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("account")
 }
@@ -90,7 +87,7 @@ model Verification {
 }
 
 model VisitorLog {
-  id                   String   @id
+  id                   String   @id @default(cuid())
   visitorId            String
   ipHash               String
   path                 String
@@ -104,4 +101,295 @@ model VisitorLog {
   @@index([path, visitedAt])
   @@index([referrerSource, visitedAt])
   @@index([visitorId, visitedAt])
+  @@map("visitorLog")
+}
+
+model Message {
+  id          String        @id @default(cuid())
+  senderName  String
+  senderEmail String
+  subject     String
+  body        String
+  status      MessageStatus @default(UNREAD)
+  readAt      DateTime?
+  archivedAt  DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([status, createdAt])
+  @@map("message")
+}
+
+model Testimonial {
+  id         String              @id @default(cuid())
+  name       String
+  role       String
+  company    String?
+  message    String
+  rating     Int
+  relation   TestimonialRelation
+  status     TestimonialStatus   @default(PENDING)
+  featured   Boolean             @default(false)
+  reviewedAt DateTime?
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  @@index([status])
+  @@index([featured])
+  @@index([status, featured])
+  @@index([createdAt])
+  @@map("testimonial")
+}
+
+model CvDownloadLog {
+  id           String   @id @default(cuid())
+  ipHash       String
+  userAgent    String
+  referrer     String   @default("direct")
+  downloadedAt DateTime @default(now())
+
+  @@index([downloadedAt])
+  @@index([ipHash, downloadedAt])
+  @@map("cvDownloadLog")
+}
+
+model ResumeAsset {
+  id            String   @id @default(cuid())
+  storageKey    String   @unique @default("primary")
+  downloadUrl   String
+  fileName      String?
+  fileSizeBytes Int?
+  mimeType      String   @default("application/pdf")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("resumeAsset")
+}
+
+model ProfileContent {
+  id              String   @id @default(cuid())
+  storageKey      String   @unique @default("primary")
+  fullName        String
+  headline        String
+  shortIntro      String
+  about           String
+  location        String
+  email           String
+  phone           String
+  availability    String
+  primaryCta      String
+  profilePhotoUrl String?
+  socialLinks     Json
+  focus           String[] @default([])
+  stats           Json     @default("[]")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("profileContent")
+}
+
+model Skill {
+  id        String   @id @default(cuid())
+  name      String
+  category  String
+  level     String
+  featured  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([featured])
+  @@index([category, featured])
+  @@map("skill")
+}
+
+model Project {
+  id                   String        @id @default(cuid())
+  title                String
+  slug                 String        @unique
+  summary              String
+  category             String
+  year                 String
+  clientOrCompany      String
+  role                 String
+  duration             String
+  thumbnailPlaceholder String
+  projectUrl           String?
+  githubUrl            String?
+  impactSummary        String
+  tags                 String[]
+  impactBullets        String[]
+  techStack            String[]
+  process              String[]
+  featured             Boolean       @default(false)
+  status               ProjectStatus @default(DRAFT)
+  sortOrder            Int?
+  accent               ProjectAccent @default(RED)
+  challenge            String
+  outcome              String
+  metrics              Json
+  gallery              Json
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  @@index([status])
+  @@index([featured])
+  @@index([sortOrder])
+  @@index([status, featured, sortOrder])
+  @@index([updatedAt])
+  @@map("project")
+}
+
+model BlogPost {
+  id                    String         @id @default(cuid())
+  title                 String
+  slug                  String         @unique
+  excerpt               String
+  content               String
+  tags                  String[]
+  category              String
+  coverImagePlaceholder String?
+  status                BlogPostStatus @default(DRAFT)
+  featured              Boolean        @default(false)
+  publishDate           DateTime?
+  readingTime           String
+  seoTitle              String?
+  seoDescription        String?
+  authorName            String
+  authorUserId          String
+  authorUser            User           @relation(fields: [authorUserId], references: [id], onDelete: Cascade)
+  comments              BlogComment[]
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  @@index([status])
+  @@index([featured])
+  @@index([publishDate])
+  @@index([authorUserId])
+  @@index([status, featured, publishDate])
+  @@map("blogPost")
+}
+
+model BlogComment {
+  id               String            @id @default(cuid())
+  blogPostId       String
+  blogPost         BlogPost          @relation(fields: [blogPostId], references: [id], onDelete: Cascade)
+  parentId         String?
+  parent           BlogComment?      @relation("BlogCommentThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies          BlogComment[]     @relation("BlogCommentThread")
+  displayName      String
+  email            String
+  body             String
+  status           BlogCommentStatus @default(PENDING)
+  reviewedAt       DateTime?
+  reviewedByUserId String?
+  reviewedByUser   User?             @relation("BlogCommentReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  ipHash           String
+  fingerprint      String
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([blogPostId])
+  @@index([blogPostId, status, createdAt])
+  @@index([blogPostId, parentId, status, createdAt])
+  @@index([parentId])
+  @@index([status])
+  @@index([reviewedByUserId])
+  @@index([fingerprint])
+  @@index([ipHash, createdAt])
+  @@map("blogComment")
+}
+
+enum MessageStatus {
+  UNREAD
+  READ
+  ARCHIVED
+}
+
+enum TestimonialStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum TestimonialRelation {
+  CLIENT
+  COLLEAGUE
+  MENTOR
+  OTHER
+}
+
+enum BlogPostStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ProjectStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ProjectAccent {
+  RED
+  BLUE
+  CREAM
+}
+
+enum BlogCommentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SPAM
+}
+
+model Experience {
+  id           String   @id @default(cuid())
+  role         String
+  company      String
+  period       String
+  location     String
+  summary      String
+  achievements String[]
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([sortOrder])
+  @@map("experience")
+}
+
+model Education {
+  id          String   @id @default(cuid())
+  degree      String
+  school      String
+  period      String
+  description String
+  highlights  String[]
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([sortOrder])
+  @@map("education")
+}
+
+model Certificate {
+  id               String   @id @default(cuid())
+  name             String
+  issuer           String
+  year             String
+  verificationLink String
+  credentialId     String?
+  featured         Boolean  @default(false)
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([featured])
+  @@index([sortOrder])
+  @@map("certificate")
 }

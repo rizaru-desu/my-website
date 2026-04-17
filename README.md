@@ -1,7 +1,7 @@
 # Portfolio Platform
 
 > A bold public portfolio paired with an editorial-style admin workspace.  
-> This repo is already strong in authentication, protected admin UX, and recruiter-facing presentation, but much of the CMS data layer is still mock or local-only.
+> This repo is already strong in authentication, protected admin UX, and recruiter-facing presentation. Several CMS domains now use real persisted data, but some content areas still rely on fallback or mock-backed flows.
 
 ## How to Read This Repo Today
 
@@ -11,7 +11,7 @@ The honest read:
 
 - The product direction, design language, public pages, and admin surfaces are already substantial.
 - Authentication and account security are implemented with real Better Auth flows.
-- Many content-management screens currently use `mock-content`, seeded defaults, or local state instead of persisted Prisma content models.
+- Some content-management screens already persist to Prisma, while others still use `mock-content`, seeded defaults, or fallback paths.
 - [`docs/task.md`](docs/task.md) still exists, but it is **not fully in sync** with the current codebase. Treat this README as the current status snapshot.
 
 ## Stack Snapshot
@@ -23,7 +23,7 @@ The honest read:
 | Auth | Better Auth + Prisma adapter + Argon2 |
 | Database | PostgreSQL via Prisma |
 | Client data | TanStack Query + TanStack Form |
-| Charts | `rough-viz` for the current admin analytics presentation |
+| Charts | `Recharts` for the current admin analytics presentation |
 | Testing | Node test runner for auth / 2FA flow assertions |
 
 ## Versioning
@@ -72,18 +72,22 @@ The honest read:
 - Admin dashboard, analytics surface, and collection overview pages exist under [`app/admin`](app/admin).
 - A real admin users flow exists with server prefetching, hydration, listing, ban/unban, and session revocation in [`app/admin/users`](app/admin/users).
 - Account management, profile editing, projects, skills, blog, testimonials, messages, and resume workspace pages all exist as usable admin surfaces.
+- The admin messages inbox now uses real Prisma-backed listing, status updates, and reply actions in [`app/admin/messages`](app/admin/messages) and [`app/api/admin/messages`](app/api/admin/messages).
+- Testimonial moderation now uses a real Prisma-backed review queue with filtering, pagination, detail dialogs, and moderation actions in [`app/admin/testimonials`](app/admin/testimonials).
+- Projects now use a real Prisma-backed admin CRUD flow with TanStack Query, protected REST routes, and public revalidation in [`app/admin/projects`](app/admin/projects), [`app/api/admin/projects`](app/api/admin/projects), and [`lib/projects.ts`](lib/projects.ts).
 
 **Partial / Mock**
 
-- Most non-user CMS sections are currently driven by `mock-content`, default-value files, or local-only state instead of persisted records.
-- Dashboard analytics now use live visitor tracking for visitors, traffic sources, and top pages, but message and resume-download analytics are still pending.
+- Several non-user CMS sections still rely on `mock-content`, seeded defaults, or fallback records instead of fully persisted content models.
+- Dashboard analytics now use live visitor tracking for visitors, messages, and resume downloads, while deeper aggregation still remains pending in other areas.
 - Resume upload, profile photo upload, and blog/project media handling are UI simulations rather than connected cloud storage flows.
-- Some save flows are intentionally local/editorial rather than true CRUD persistence.
+- Message replies depend on SMTP env configuration, so reply composition is live but outbound delivery still depends on mailer setup.
+- Profile, skills, blog, and resume content still include fallback-oriented paths or incomplete persistence compared with the now-live project flow.
 
 **Not Yet**
 
-- Fully persisted CRUD for profile, projects, skills, blog posts, testimonials, messages, education, experience, certificates, and resume assets.
-- Real moderation, inbox, or publishing workflows backed by database state across the whole admin area.
+- Fully persisted CRUD for profile, skills, education, experience, certificates, and complete resume asset/content management.
+- Real publishing and moderation workflows backed by database state across every remaining CMS area.
 - Recharts-based analytics implementation promised in older planning docs.
 
 ### 3. Public Portfolio
@@ -95,17 +99,20 @@ The honest read:
 - Blog archive and blog detail pages are implemented in [`app/blog/page.tsx`](app/blog/page.tsx) and [`app/blog/[slug]/page.tsx`](app/blog/[slug]/page.tsx).
 - Reading progress for blog articles is implemented in [`components/reading-progress.tsx`](components/reading-progress.tsx).
 - Public filtering UI exists for projects and blog through [`components/project-filter.tsx`](components/project-filter.tsx) and [`components/blog-filter.tsx`](components/blog-filter.tsx).
+- Public project archive, project detail pages, and homepage featured project rail now use real Prisma-backed project data through [`lib/projects.ts`](lib/projects.ts) and [`app/api/public/projects`](app/api/public/projects).
+- The public contact form persists inbound messages through [`app/actions/contact.action.ts`](app/actions/contact.action.ts) into the admin inbox backed by [`prisma/schema.prisma`](prisma/schema.prisma).
+- The public resume route now uses a real CV download proxy at [`app/api/cv/download/route.ts`](app/api/cv/download/route.ts), with redirect fallback when the asset URL is not configured yet.
+- A dedicated public testimonial submission page exists at [`app/testimonials/page.tsx`](app/testimonials/page.tsx), and homepage proof cards now read approved featured testimonials through [`lib/testimonials.ts`](lib/testimonials.ts).
+- Public testimonial submission is backed by a real server action, moderation queue, and optional Upstash-based rate limiting through [`app/actions/testimonial.action.ts`](app/actions/testimonial.action.ts) and [`components/testimonial-section.tsx`](components/testimonial-section.tsx).
 
 **Partial / Mock**
 
-- Public portfolio content currently comes from [`lib/mock-content.ts`](lib/mock-content.ts), not from content models in Prisma.
-- Testimonials are rendered on the public site, but they are sourced from mock content rather than a reviewed live submission pipeline.
-- The public-facing content architecture already mirrors the intended CMS, but not yet the intended persistence layer.
+- Public profile, blog fallback paths, and resume content still depend partly on [`lib/mock-content.ts`](lib/mock-content.ts) or fallback data when storage is unavailable.
+- The homepage testimonial proof deck falls back to mock content if testimonial storage is unavailable, so local setups without the testimonial table still render.
+- The public-facing content architecture mostly mirrors the intended CMS, but only some domains are fully backed by persisted content models today.
 
 **Not Yet**
 
-- Public contact form submission flow backed by a real message model and backend handler.
-- Public testimonial submission flow with review queue, spam protection, and approval persistence.
 - Command palette search.
 - Dedicated print-optimized `/cv` route separate from the current `/resume` page.
 
@@ -116,20 +123,24 @@ The honest read:
 - Prisma currently models auth-related entities: `User`, `Account`, `Session`, `Verification`, and `TwoFactor`.
 - Real backend querying exists for managed admin users through [`lib/admin-users.ts`](lib/admin-users.ts), [`app/api/admin/users/route.ts`](app/api/admin/users/route.ts), and [`app/admin/users/actions.ts`](app/admin/users/actions.ts).
 - Visitor analytics now have a real persistence model and query layer through [`prisma/schema.prisma`](prisma/schema.prisma), [`lib/visitor-analytics.ts`](lib/visitor-analytics.ts), and [`app/api/track/visit/route.ts`](app/api/track/visit/route.ts).
+- Messages now have a real Prisma model, public submission action, admin inbox handlers, and reply/status flows through [`prisma/schema.prisma`](prisma/schema.prisma), [`app/actions/contact.action.ts`](app/actions/contact.action.ts), and [`app/api/admin/messages`](app/api/admin/messages).
+- Resume downloads now have a real tracking model, route handler, and dashboard query layer through [`prisma/schema.prisma`](prisma/schema.prisma), [`app/api/cv/download/route.ts`](app/api/cv/download/route.ts), and [`lib/resume.ts`](lib/resume.ts).
+- Testimonials now have a real Prisma model, seed data, public submission flow, and admin moderation handlers through [`prisma/schema.prisma`](prisma/schema.prisma), [`prisma/seed.mjs`](prisma/seed.mjs), and [`app/api/admin/testimonials`](app/api/admin/testimonials).
+- Projects now have a real Prisma model, seed data, admin CRUD handlers, public query layer, and homepage/archive/detail integration through [`prisma/schema.prisma`](prisma/schema.prisma), [`prisma/seed.mjs`](prisma/seed.mjs), [`app/api/admin/projects`](app/api/admin/projects), [`app/api/public/projects`](app/api/public/projects), and [`lib/projects.ts`](lib/projects.ts).
 
 **Partial / Mock**
 
-- The codebase already has schemas, editor defaults, and structured UI for many CMS domains, but most of those domains do not yet persist to Prisma.
-- Some admin pages are already shaped like production features, but they are still acting as local prototypes with realistic data.
+- The codebase already has schemas, editor defaults, and structured UI for many CMS domains, but several of those domains still do not persist fully to Prisma.
+- Some admin pages are already shaped like production features, but a few still act as fallback-friendly prototypes with realistic data.
 - Visitor analytics use Upstash-backed dedup and Prisma-backed storage, but they currently cover only public page visits, not message or download events.
 
 **Not Yet**
 
-- Prisma content models for profile, projects, skills, education, experience, certificates, blog posts, testimonials, messages, and CV download logs.
-- Full server actions or route handlers for CMS CRUD across those content models.
-- Broader Redis-backed caching, dedup, or rate limiting for message submissions and other public flows.
+- Prisma content models and complete CRUD coverage for profile, skills, education, experience, certificates, and fully persisted blog/profile/resume domains.
+- Full server actions or route handlers for CMS CRUD across every remaining content model.
+- Broader Redis-backed caching, dedup, or rate limiting beyond visitor analytics and testimonial submissions.
 - BullMQ or background job infrastructure.
-- Real analytics tracking for messages and resume downloads.
+- Broader analytics beyond visitors, inbox, and resume downloads.
 
 ### 5. Platform, SEO, and Ops
 
@@ -154,11 +165,11 @@ The honest read:
 
 If this repo continues toward a production CMS, the highest-value next steps are:
 
-1. Add Prisma content models beyond auth.
-2. Replace mock/local admin save flows with real persisted CRUD.
-3. Connect public forms for messages and testimonials to real backend handlers.
-4. Add real email delivery and file storage.
-5. Extend live analytics beyond visitors, then add SEO files and production monitoring.
+1. Add Prisma content models beyond auth, analytics, and testimonials.
+2. Replace the remaining mock/fallback admin save flows with real persisted CRUD for profile, skills, blog, and resume sections.
+3. Add real email delivery and file storage.
+4. Extend live analytics beyond visitors, inbox, and resume downloads.
+5. Add SEO files and production monitoring.
 
 ## Local Setup
 
@@ -193,10 +204,30 @@ npm run test:2fa-flow
 npm run build
 ```
 
-Optional env for live visitor analytics:
+Optional env for live visitor analytics and testimonial submission rate limiting:
 
 ```bash
 UPSTASH_REDIS_REST_URL=
 UPSTASH_REDIS_REST_TOKEN=
 ANALYTICS_HASH_SALT=
 ```
+
+Optional env for the tracked CV download redirect:
+
+```bash
+RESUME_DOWNLOAD_URL=
+```
+
+Optional env for Gmail SMTP delivery via Nodemailer:
+
+```bash
+GOOGLE_SMTP_USER=
+GOOGLE_APP_PASSWORD=
+MAIL_FROM_ADDRESS=
+MAIL_FROM_NAME="Portofolio Admin"
+```
+
+Notes:
+
+- `GOOGLE_APP_PASSWORD` requires Google 2-Step Verification to be enabled.
+- If these env vars are missing, auth emails fall back to console logging instead of crashing.

@@ -24,6 +24,7 @@ export function getAppVersionInfo(): AppVersionInfo {
     normalizeOptionalValue(process.env.GITHUB_SHA) ||
     normalizeOptionalValue(process.env.NEXT_PUBLIC_GIT_SHA);
   const buildTimestamp =
+    normalizeOptionalValue(process.env.NEXT_PUBLIC_BUILD_TIMESTAMP) ||
     normalizeOptionalValue(process.env.BUILD_TIMESTAMP) ||
     normalizeOptionalValue(process.env.VERCEL_GIT_COMMIT_DATE);
 

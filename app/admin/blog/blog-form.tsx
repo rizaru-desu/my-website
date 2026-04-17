@@ -10,7 +10,35 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 
+import { BlogMdxEditor } from "./blog-mdx-editor";
 import { blogSchema, blogStatusValues, type BlogFormValues } from "./blog.schema";
+
+const mdxGuideItems = [
+  {
+    label: "Headings",
+    snippet: "## Section heading",
+  },
+  {
+    label: "Images",
+    snippet: "![Alt text](https://images.example.com/story-cover.jpg)",
+  },
+  {
+    label: "Lists",
+    snippet: "- First point",
+  },
+  {
+    label: "Mermaid",
+    snippet: "```mermaid",
+  },
+  {
+    label: "Quotes",
+    snippet: "> A sharper pull quote",
+  },
+  {
+    label: "Code",
+    snippet: "```ts",
+  },
+];
 
 function getErrorMessage(errors: unknown[] | undefined) {
   if (!errors?.length) {
@@ -209,6 +237,8 @@ function CoverUploadField({
 }
 
 type BlogFormProps = {
+  allowedStatuses: ReadonlyArray<BlogFormValues["status"]>;
+  canDelete: boolean;
   defaultValues: BlogFormValues;
   mode: "create" | "edit";
   onCancel: () => void;
@@ -217,6 +247,8 @@ type BlogFormProps = {
 };
 
 export function BlogForm({
+  allowedStatuses,
+  canDelete,
   defaultValues,
   mode,
   onCancel,
@@ -250,7 +282,7 @@ export function BlogForm({
             <Badge variant={mode === "create" ? "blue" : "red"}>
               {mode === "create" ? "New Post" : "Edit Post"}
             </Badge>
-            <Badge variant="cream">Local Save</Badge>
+            <Badge variant="cream">MDX Source</Badge>
           </div>
           <CardTitle>
             {mode === "create"
@@ -258,8 +290,8 @@ export function BlogForm({
               : "Tune editorial metadata, publishing, and presentation details."}
           </CardTitle>
           <CardDescription>
-            This editor is UI-only, validated by TanStack Form and Zod, and mirrors the
-            same structured workspace approach used in projects.
+            This editor is validated by TanStack Form and Zod, then saved through the
+            persisted editorial workflow used by the admin workspace.
           </CardDescription>
         </CardContent>
       </Card>
@@ -374,7 +406,7 @@ export function BlogForm({
             Content
           </p>
           <p className="text-sm leading-7 text-ink/72">
-            Shape the core article body, reading estimate, and whether this post should
+            Shape the MDX article body, reading estimate, and whether this post should
             be promoted in the featured editorial rail.
           </p>
         </div>
@@ -427,18 +459,40 @@ export function BlogForm({
           {(field) => (
             <div className="space-y-2">
               <FieldLabel htmlFor={field.name}>Content</FieldLabel>
-              <Textarea
-                id={field.name}
-                value={field.state.value}
-                onBlur={field.handleBlur}
-                onChange={(event) => field.handleChange(event.target.value)}
-                placeholder="Use markdown-like structure or article copy blocks to simulate the full story."
-                className="min-h-72"
+              <BlogMdxEditor
+                markdown={field.state.value}
+                onBlur={() => field.handleBlur()}
+                onChange={(value) => field.handleChange(value)}
+                placeholder={
+                  <span className="flex flex-col gap-3 text-ink/38">
+                    <span className="font-display text-2xl uppercase leading-none">
+                      Start with a strong point of view
+                    </span>
+                    <span className="text-sm leading-6">
+                      Use the toolbar for structure, or switch to source mode when you
+                      want to tune the raw MDX directly.
+                    </span>
+                  </span>
+                }
               />
               <p className="text-sm leading-6 text-ink/60">
-                This is a rich-editor-like shell for now, using a single textarea in the
-                UI-only phase.
+                Write trusted article content in MDX with a richer editor. Headings,
+                images by URL, blockquotes, links, tables, fenced code blocks, and
+                Mermaid diagrams are supported. Raw HTML is intentionally suppressed,
+                and imports or exports stay disabled in the public renderer.
               </p>
+              <div className="grid gap-3 rounded-[24px] border-[3px] border-ink/15 bg-white/65 p-4 sm:grid-cols-2 xl:grid-cols-3">
+                {mdxGuideItems.map((item) => (
+                  <div key={item.label} className="space-y-2 rounded-[18px] border-[2px] border-dashed border-ink/20 bg-panel/70 px-3 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink/55">
+                      {item.label}
+                    </p>
+                    <code className="block rounded-[10px] bg-ink px-3 py-2 font-mono text-xs text-panel">
+                      {item.snippet}
+                    </code>
+                  </div>
+                ))}
+              </div>
               <FieldError errors={field.state.meta.errors} touched={field.state.meta.isTouched} />
             </div>
           )}
@@ -466,6 +520,10 @@ export function BlogForm({
             {(field) => (
               <div className="flex flex-wrap gap-3">
                 {blogStatusValues.map((status) => {
+                  if (!allowedStatuses.includes(status)) {
+                    return null;
+                  }
+
                   const variant =
                     field.state.value === status
                       ? status === "published"
@@ -619,7 +677,7 @@ export function BlogForm({
           Cancel
         </Button>
         {onDelete ? (
-          <Button type="button" variant="ink" onClick={onDelete}>
+          <Button type="button" variant="ink" onClick={onDelete} disabled={!canDelete}>
             Delete Post
           </Button>
         ) : null}

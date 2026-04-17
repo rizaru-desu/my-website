@@ -274,7 +274,7 @@ function isMissingVisitorLogTableError(error: unknown) {
 
   return (
     error instanceof Error &&
-    /42P01|VisitorLog|relation .* does not exist|table .* does not exist/i.test(
+    /42P01|VisitorLog|visitorLog|relation .* does not exist|table .* does not exist/i.test(
       error.message,
     )
   );
@@ -413,7 +413,7 @@ export async function writePreparedVisitorTracking(prepared: PreparedVisitorTrac
     const logId = randomUUID();
 
     await prisma.$executeRaw`
-      INSERT INTO "VisitorLog" (
+      INSERT INTO "visitorLog" (
         "id",
         "visitorId",
         "ipHash",
@@ -517,14 +517,14 @@ export async function getDashboardVisitorAnalytics(
             WHERE "visitedAt" >= ${range.start}
               AND "visitedAt" < ${range.endExclusive}
           )::int AS "currentPageViews"
-        FROM "VisitorLog"
+        FROM "visitorLog"
       `,
       prisma.$queryRaw<DailyRow[]>`
         SELECT
           TO_CHAR(("visitedAt" AT TIME ZONE 'Asia/Jakarta')::date, 'YYYY-MM-DD') AS "dayKey",
           COUNT(*) FILTER (WHERE "isUniqueDailyVisitor" = true)::int AS "uniqueVisitors",
           COUNT(*)::int AS "pageViews"
-        FROM "VisitorLog"
+        FROM "visitorLog"
         WHERE "visitedAt" >= ${range.start}
           AND "visitedAt" < ${range.endExclusive}
         GROUP BY 1
@@ -534,7 +534,7 @@ export async function getDashboardVisitorAnalytics(
         SELECT
           "referrerSource" AS "source",
           COUNT(*)::int AS "count"
-        FROM "VisitorLog"
+        FROM "visitorLog"
         WHERE "visitedAt" >= ${range.start}
           AND "visitedAt" < ${range.endExclusive}
           AND "isUniqueDailyVisitor" = true
@@ -545,7 +545,7 @@ export async function getDashboardVisitorAnalytics(
         SELECT
           "path",
           COUNT(*)::int AS "views"
-        FROM "VisitorLog"
+        FROM "visitorLog"
         WHERE "visitedAt" >= ${range.start}
           AND "visitedAt" < ${range.endExclusive}
         GROUP BY "path"

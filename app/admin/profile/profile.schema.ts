@@ -1,5 +1,19 @@
 import { z } from "zod";
 
+export const MAX_PROFILE_PHOTO_FILE_BYTES = 1024 * 1024;
+export const MAX_PROFILE_PHOTO_DATA_URL_LENGTH = 1_500_000;
+
+const profilePhotoDataUrlSchema = z
+  .string()
+  .max(
+    MAX_PROFILE_PHOTO_DATA_URL_LENGTH,
+    "Keep the profile photo under 1MB before upload.",
+  )
+  .regex(
+    /^data:image\/(?:png|jpe?g|webp|gif|svg\+xml);base64,[a-z0-9+/=]+$/i,
+    "Upload a valid image data URL.",
+  );
+
 export const socialLinkSchema = z.object({
   label: z
     .string()
@@ -9,6 +23,12 @@ export const socialLinkSchema = z.object({
     .string()
     .url("Enter a valid URL.")
     .max(120, "Keep the URL under 120 characters."),
+});
+
+export const profileStatSchema = z.object({
+  label: z.string().min(1, "Enter a label.").max(40, "Keep the label under 40 characters."),
+  value: z.string().min(1, "Enter a value.").max(20, "Keep the value under 20 characters."),
+  detail: z.string().min(1, "Enter a detail message.").max(80, "Keep the detail under 80 characters."),
 });
 
 export const profileSchema = z.object({
@@ -45,10 +65,15 @@ export const profileSchema = z.object({
     .string()
     .min(4, "Primary CTA is required.")
     .max(40, "Keep the CTA under 40 characters."),
+  profilePhotoUrl: z
+    .union([profilePhotoDataUrlSchema, z.literal(""), z.null()])
+    .transform((value) => (value === "" ? null : value)),
   socialLinks: z
     .array(socialLinkSchema)
     .min(1, "Add at least one social link.")
     .max(4, "Keep social links to four entries or fewer."),
+  focus: z.array(z.string().min(2, "Focus area must be at least 2 chars.").max(60, "Focus area must be under 60 chars.")),
+  stats: z.array(profileStatSchema),
 });
 
 export type ProfileFormValues = z.infer<typeof profileSchema>;

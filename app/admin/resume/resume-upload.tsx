@@ -1,257 +1,284 @@
 "use client";
 
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ChangeEvent,
-  type DragEvent,
-} from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { cn } from "@/lib/utils";
+import {
+  type AdminResumeAssetRecord,
+  formatResumeFileSize,
+  formatResumeUpdatedAt,
+} from "@/lib/resume.shared";
 
-type UploadState = "idle" | "dragging" | "uploading" | "success";
+import {
+  adminResumeAssetQueryKey,
+  clearAdminResumeAssetRequest,
+  fetchAdminResumeAsset,
+  updateAdminResumeAssetRequest,
+} from "./resume.queries";
 
-type UploadedResume = {
-  name: string;
-  size: number;
-  uploadedAt: string;
-  type: "PDF";
+type DraftState = {
+  downloadUrl: string;
+  fileName: string;
 };
 
-const MAX_RESUME_SIZE = 5 * 1024 * 1024;
-
-function formatFileSize(size: number) {
-  if (size < 1024) {
-    return `${size} B`;
-  }
-
-  if (size < 1024 * 1024) {
-    return `${(size / 1024).toFixed(1)} KB`;
-  }
-
-  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+function createDraft(asset?: AdminResumeAssetRecord | null): DraftState {
+  return {
+    downloadUrl: asset?.downloadUrl ?? "",
+    fileName: asset?.fileName ?? "",
+  };
 }
 
-function isPdfFile(file: File) {
-  return (
-    file.type === "application/pdf" ||
-    file.name.toLowerCase().endsWith(".pdf")
-  );
+function getSourceBadge(asset: AdminResumeAssetRecord | undefined) {
+  if (!asset || asset.source === "none") {
+    return {
+      label: "No Active Asset",
+      variant: "red" as const,
+    };
+  }
+
+  if (asset.source === "env") {
+    return {
+      label: "Env Fallback",
+      variant: "cream" as const,
+    };
+  }
+
+  return {
+    label: "Database Saved",
+    variant: "blue" as const,
+  };
+}
+
+function getStatusCopy(asset: AdminResumeAssetRecord | undefined) {
+  if (!asset || asset.source === "none") {
+    return {
+      description:
+        "No CV file is configured yet. Public downloads will stay unavailable until a URL is saved here or provided through the environment fallback.",
+      title: "No tracked CV target yet",
+    };
+  }
+
+  if (asset.source === "env") {
+    return {
+      description:
+        "Public downloads currently use the environment fallback. Saving from this screen will override that fallback with a stored database record.",
+      title: "Using environment fallback",
+    };
+  }
+
+  return {
+    description:
+      "This stored record controls the public CV download route. Recruiters clicking Download CV will be redirected to this file while tracking stays on the server.",
+    title: "Stored resume asset is live",
+  };
+}
+
+function getHostLabel(value: string | null) {
+  if (!value) {
+    return "Unavailable";
+  }
+
+  try {
+    return new URL(
+      value.startsWith("/") ? `https://portfolio.local${value}` : value,
+    ).host;
+  } catch {
+    return "Relative path";
+  }
 }
 
 export function ResumeUpload() {
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  const uploadTimeoutRef = useRef<number | null>(null);
-  const [uploadState, setUploadState] = useState<UploadState>("idle");
-  const [uploadedResume, setUploadedResume] = useState<UploadedResume | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [actionNote, setActionNote] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const [draft, setDraft] = useState<DraftState>(createDraft());
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const {
+    data: asset,
+    error,
+    isFetching,
+    isLoading,
+  } = useQuery({
+    queryKey: adminResumeAssetQueryKey,
+    queryFn: fetchAdminResumeAsset,
+    refetchOnWindowFocus: false,
+  });
 
   useEffect(() => {
-    return () => {
-      if (uploadTimeoutRef.current) {
-        window.clearTimeout(uploadTimeoutRef.current);
-      }
-    };
-  }, []);
+    setDraft(createDraft(asset));
+  }, [asset?.downloadUrl, asset?.fileName, asset?.source, asset?.updatedAt]);
 
-  const statusBadge = useMemo(() => {
-    if (uploadState === "uploading") {
-      return { label: "Uploading", variant: "blue" as const };
-    }
+  const saveMutation = useMutation({
+    mutationFn: updateAdminResumeAssetRequest,
+    onMutate: () => {
+      setFeedback(null);
+      setFormError(null);
+    },
+    onSuccess: async (result) => {
+      setFeedback(result.message);
+      await queryClient.invalidateQueries({ queryKey: adminResumeAssetQueryKey });
+    },
+    onError: (mutationError) => {
+      setFormError(
+        mutationError instanceof Error
+          ? mutationError.message
+          : "The resume asset could not be saved right now.",
+      );
+    },
+  });
 
-    if (uploadState === "success") {
-      return { label: "Resume Ready", variant: "cream" as const };
-    }
+  const clearMutation = useMutation({
+    mutationFn: clearAdminResumeAssetRequest,
+    onMutate: () => {
+      setFeedback(null);
+      setFormError(null);
+    },
+    onSuccess: async (result) => {
+      setFeedback(result.message);
+      await queryClient.invalidateQueries({ queryKey: adminResumeAssetQueryKey });
+    },
+    onError: (mutationError) => {
+      setFormError(
+        mutationError instanceof Error
+          ? mutationError.message
+          : "The resume asset could not be cleared right now.",
+      );
+    },
+  });
 
-    if (uploadState === "dragging") {
-      return { label: "Drop PDF", variant: "blue" as const };
-    }
+  const sourceBadge = getSourceBadge(asset);
+  const statusCopy = getStatusCopy(asset);
+  const isBusy = saveMutation.isPending || clearMutation.isPending;
+  const isDirty =
+    draft.downloadUrl.trim() !== (asset?.downloadUrl ?? "") ||
+    draft.fileName.trim() !== (asset?.fileName ?? "");
+  const canClear = asset?.source === "database";
+  const activeUrl = asset?.downloadUrl;
 
-    return { label: "Resume Upload", variant: "red" as const };
-  }, [uploadState]);
+  const previewMeta = useMemo(
+    () => ({
+      host: getHostLabel(activeUrl ?? null),
+      updatedAt: formatResumeUpdatedAt(asset?.updatedAt ?? null),
+    }),
+    [activeUrl, asset?.updatedAt],
+  );
 
-  function openPicker() {
-    inputRef.current?.click();
-  }
-
-  function resetUpload() {
-    if (uploadTimeoutRef.current) {
-      window.clearTimeout(uploadTimeoutRef.current);
-      uploadTimeoutRef.current = null;
-    }
-
-    setUploadedResume(null);
-    setUploadState("idle");
-    setError(null);
-    setActionNote(null);
-
-    if (inputRef.current) {
-      inputRef.current.value = "";
-    }
-  }
-
-  function processFile(file: File | undefined) {
-    if (!file) {
+  function handleSave() {
+    if (!draft.downloadUrl.trim()) {
+      setFormError("Resume URL is required.");
       return;
     }
 
-    if (!isPdfFile(file)) {
-      setError("Resume upload accepts PDF files only.");
-      setUploadState("idle");
-      return;
-    }
-
-    if (file.size > MAX_RESUME_SIZE) {
-      setError("Resume must be 5MB or smaller.");
-      setUploadState("idle");
-      return;
-    }
-
-    if (uploadTimeoutRef.current) {
-      window.clearTimeout(uploadTimeoutRef.current);
-    }
-
-    setError(null);
-    setActionNote(null);
-    setUploadState("uploading");
-
-    uploadTimeoutRef.current = window.setTimeout(() => {
-      setUploadedResume({
-        name: file.name,
-        size: file.size,
-        uploadedAt: new Date().toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        }),
-        type: "PDF",
-      });
-      setUploadState("success");
-      uploadTimeoutRef.current = null;
-    }, 800);
+    saveMutation.mutate({
+      downloadUrl: draft.downloadUrl.trim(),
+      fileName: draft.fileName.trim() || undefined,
+      mimeType: "application/pdf",
+    });
   }
 
-  function handleInputChange(event: ChangeEvent<HTMLInputElement>) {
-    processFile(event.target.files?.[0]);
-  }
-
-  function handleDragOver(event: DragEvent<HTMLButtonElement>) {
-    event.preventDefault();
-    if (uploadState !== "uploading") {
-      setUploadState("dragging");
-    }
-  }
-
-  function handleDragLeave() {
-    if (uploadState !== "uploading") {
-      setUploadState(uploadedResume ? "success" : "idle");
-    }
-  }
-
-  function handleDrop(event: DragEvent<HTMLButtonElement>) {
-    event.preventDefault();
-    processFile(event.dataTransfer.files?.[0]);
-  }
-
-  function handleDownloadClick() {
-    setActionNote("Download is not available from this screen yet.");
+  function handleResetDraft() {
+    setDraft(createDraft(asset));
+    setFormError(null);
+    setFeedback(null);
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+    <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
       <Card className="paper-grid px-6 py-6 sm:px-8">
         <CardContent className="space-y-6">
           <div className="space-y-3">
-            <Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>
-            <CardTitle>Resume upload</CardTitle>
+            <Badge variant={sourceBadge.variant}>{sourceBadge.label}</Badge>
+            <CardTitle>Resume delivery manager</CardTitle>
             <CardDescription>
-              Drag and drop a PDF or click to choose one. The current flow keeps
-              the file available in this browser session.
+              Save the hosted PDF URL that should power public CV downloads. The
+              download route and dashboard tracking both read from this source now.
             </CardDescription>
           </div>
 
           <Separator />
 
-          <button
-            type="button"
-            onClick={openPicker}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            className={cn(
-              "relative flex min-h-72 w-full flex-col items-center justify-center gap-5 rounded-[30px] border-[3px] border-dashed border-ink bg-white/70 px-6 py-8 text-center shadow-[8px_8px_0_var(--ink)] transition",
-              uploadState === "dragging" && "bg-accent-blue/10",
-              uploadState === "uploading" && "cursor-progress bg-accent-blue/6",
-            )}
-          >
-            <input
-              ref={inputRef}
-              type="file"
-              accept="application/pdf,.pdf"
-              className="hidden"
-              onChange={handleInputChange}
-            />
-
-            <div className="grid h-28 w-24 place-items-center rounded-[22px] border-[3px] border-ink bg-panel shadow-[6px_6px_0_var(--ink)]">
-              <div className="space-y-2">
-                <div className="mx-auto h-3 w-12 rounded-full bg-accent-red" />
-                <p className="font-display text-3xl uppercase leading-none text-ink">
-                  PDF
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <p className="font-display text-3xl uppercase leading-none text-ink sm:text-4xl">
-                {uploadState === "uploading"
-                  ? "Uploading resume..."
-                  : uploadState === "success"
-                    ? "Resume uploaded"
-                    : "Drop PDF here"}
+          <div className="grid gap-5">
+            <label className="space-y-2">
+              <span className="text-sm font-semibold uppercase tracking-[0.16em] text-ink/70">
+                Resume PDF URL
+              </span>
+              <Input
+                type="url"
+                placeholder="https://cdn.example.com/rizal-achmad-resume.pdf"
+                value={draft.downloadUrl}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    downloadUrl: event.target.value,
+                  }))
+                }
+                disabled={isBusy || isLoading}
+              />
+              <p className="text-sm leading-6 text-ink/62">
+                Use an absolute `https://` URL or a site-relative path like
+                `/resume/rizal-achmad.pdf`.
               </p>
-              <p className="max-w-md text-sm leading-7 text-ink/72">
-                Upload your resume (PDF only, max 5MB)
-              </p>
-            </div>
-          </button>
+            </label>
 
-          {error ? (
-            <p className="text-sm font-semibold leading-6 text-accent-red">{error}</p>
+            <label className="space-y-2">
+              <span className="text-sm font-semibold uppercase tracking-[0.16em] text-ink/70">
+                File name label
+              </span>
+              <Input
+                type="text"
+                placeholder="Rizal-Achmad-Resume.pdf"
+                value={draft.fileName}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    fileName: event.target.value,
+                  }))
+                }
+                disabled={isBusy || isLoading}
+              />
+              <p className="text-sm leading-6 text-ink/62">
+                Optional. If left blank, the label is inferred from the saved URL.
+              </p>
+            </label>
+          </div>
+
+          {formError ? (
+            <p className="text-sm font-semibold leading-6 text-accent-red">{formError}</p>
+          ) : null}
+
+          {feedback ? (
+            <p className="text-sm font-semibold leading-6 text-ink/72">{feedback}</p>
           ) : null}
 
           <div className="flex flex-wrap gap-3">
             <Button
               type="button"
               variant="blue"
-              onClick={openPicker}
-              disabled={uploadState === "uploading"}
+              onClick={handleSave}
+              disabled={isBusy || isLoading || !draft.downloadUrl.trim() || !isDirty}
             >
-              {uploadedResume ? "Replace Resume" : "Choose PDF"}
+              {saveMutation.isPending ? "Saving asset..." : "Save Asset"}
             </Button>
             <Button
               type="button"
               variant="muted"
-              onClick={resetUpload}
-              disabled={!uploadedResume || uploadState === "uploading"}
+              onClick={handleResetDraft}
+              disabled={isBusy || isLoading || !isDirty}
             >
-              Remove Resume
+              Reset Draft
+            </Button>
+            <Button
+              type="button"
+              variant="default"
+              onClick={() => clearMutation.mutate()}
+              disabled={isBusy || isLoading || !canClear}
+            >
+              {clearMutation.isPending ? "Clearing..." : "Clear Stored Asset"}
             </Button>
           </div>
         </CardContent>
@@ -260,112 +287,112 @@ export function ResumeUpload() {
       <div className="space-y-6">
         <Card accent="blue" className="space-y-4">
           <CardContent className="space-y-5">
-            <Badge variant="blue">Uploaded File</Badge>
-            {uploadedResume ? (
+            <Badge variant="blue">Current Source</Badge>
+
+            {isLoading ? (
+              <div className="rounded-[26px] border-[3px] border-ink bg-white/68 p-5 text-sm leading-7 text-ink/72 shadow-[6px_6px_0_var(--ink)]">
+                Loading the current resume asset...
+              </div>
+            ) : error ? (
+              <div className="rounded-[26px] border-[3px] border-ink bg-white/68 p-5 text-sm leading-7 text-accent-red shadow-[6px_6px_0_var(--ink)]">
+                {error instanceof Error
+                  ? error.message
+                  : "The current resume asset could not be loaded."}
+              </div>
+            ) : (
               <>
                 <div className="rounded-[26px] border-[3px] border-ink bg-white/68 p-5 shadow-[6px_6px_0_var(--ink)]">
                   <div className="flex items-start justify-between gap-4">
                     <div className="grid h-16 w-14 place-items-center rounded-[18px] border-[3px] border-ink bg-panel font-display text-2xl uppercase text-ink">
                       PDF
                     </div>
-                    <Badge variant="cream">{uploadedResume.type}</Badge>
+                    <Badge variant={sourceBadge.variant}>{sourceBadge.label}</Badge>
                   </div>
                   <div className="mt-5 space-y-3">
                     <p className="font-display text-2xl uppercase leading-none text-ink">
-                      {uploadedResume.name}
+                      {asset?.fileName ?? "No file label yet"}
+                    </p>
+                    <p className="text-sm leading-7 text-ink/74 break-all">
+                      {asset?.downloadUrl ?? "No active CV URL is configured yet."}
                     </p>
                     <div className="grid gap-3 sm:grid-cols-3">
-                      <div className="rounded-[18px] border-[3px] border-ink bg-panel px-3 py-3">
+                      <div className="min-w-0 rounded-[18px] border-[3px] border-ink bg-panel px-3 py-3">
+                        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-ink/60">
+                          Host
+                        </p>
+                        <p className="mt-2 break-words text-[0.82rem] font-semibold uppercase leading-5 tracking-[0.05em] text-ink">
+                          {previewMeta.host}
+                        </p>
+                      </div>
+                      <div className="min-w-0 rounded-[18px] border-[3px] border-ink bg-panel px-3 py-3">
+                        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-ink/60">
+                          Saved
+                        </p>
+                        <p className="mt-2 break-words text-[0.82rem] font-semibold uppercase leading-5 tracking-[0.05em] text-ink">
+                          {previewMeta.updatedAt}
+                        </p>
+                      </div>
+                      <div className="min-w-0 rounded-[18px] border-[3px] border-ink bg-panel px-3 py-3">
                         <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-ink/60">
                           Size
                         </p>
-                        <p className="mt-2 text-sm font-semibold uppercase tracking-[0.12em] text-ink">
-                          {formatFileSize(uploadedResume.size)}
-                        </p>
-                      </div>
-                      <div className="rounded-[18px] border-[3px] border-ink bg-panel px-3 py-3">
-                        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-ink/60">
-                          Uploaded
-                        </p>
-                        <p className="mt-2 text-sm font-semibold uppercase tracking-[0.12em] text-ink">
-                          {uploadedResume.uploadedAt}
-                        </p>
-                      </div>
-                      <div className="rounded-[18px] border-[3px] border-ink bg-panel px-3 py-3">
-                        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-ink/60">
-                          Status
-                        </p>
-                        <p className="mt-2 text-sm font-semibold uppercase tracking-[0.12em] text-ink">
-                          Ready
+                        <p className="mt-2 break-words text-[0.82rem] font-semibold uppercase leading-5 tracking-[0.05em] text-ink">
+                          {formatResumeFileSize(asset?.fileSizeBytes ?? null)}
                         </p>
                       </div>
                     </div>
                   </div>
                 </div>
 
+                <div className="space-y-3">
+                  <p className="font-display text-2xl uppercase leading-none text-ink">
+                    {statusCopy.title}
+                  </p>
+                  <p className="text-sm leading-7 text-ink/76">{statusCopy.description}</p>
+                </div>
+
                 <div className="flex flex-wrap gap-3">
-                  <Dialog>
-                    <DialogTrigger variant="muted">Open Viewer</DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Resume viewer</DialogTitle>
-                        <DialogDescription>
-                          This modal reserves space for the resume viewer while
-                          keeping the upload flow on this page.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <Separator className="my-5" />
-                      <div className="rounded-[26px] border-[3px] border-ink bg-panel p-5 shadow-[6px_6px_0_var(--ink)]">
-                        <div className="min-h-72 rounded-[22px] border-[3px] border-dashed border-ink/30 bg-white/70 p-5">
-                          <p className="font-display text-3xl uppercase leading-none text-ink">
-                            {uploadedResume.name}
-                          </p>
-                          <p className="mt-4 text-sm leading-7 text-ink/72">
-                            PDF rendering is not available in this viewer yet.
-                          </p>
-                        </div>
-                      </div>
-                      <DialogFooter>
-                        <DialogClose variant="blue">Done</DialogClose>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                  <Button
-                    type="button"
-                    variant="default"
-                    onClick={handleDownloadClick}
-                  >
-                    Download
+                  {activeUrl ? (
+                    <Button type="button" variant="muted" asChild>
+                      <a href={activeUrl} target="_blank" rel="noreferrer">
+                        Open File
+                      </a>
+                    </Button>
+                  ) : (
+                    <Button type="button" variant="muted" disabled>
+                      Open File
+                    </Button>
+                  )}
+                  <Button type="button" variant="default" asChild>
+                    <a href="/api/cv/download" target="_blank" rel="noreferrer">
+                      Test Public Download
+                    </a>
                   </Button>
                 </div>
               </>
-            ) : (
-              <div className="rounded-[26px] border-[3px] border-ink bg-white/68 p-5 text-sm leading-7 text-ink/72 shadow-[6px_6px_0_var(--ink)]">
-                No resume uploaded yet. Once a PDF is added, the file card, actions,
-                and viewer panel will appear here.
-              </div>
             )}
-
-            {actionNote ? (
-              <p className="text-sm font-semibold leading-6 text-ink/72">
-                {actionNote}
-              </p>
-            ) : null}
           </CardContent>
         </Card>
 
         <Card className="space-y-4">
           <CardContent className="space-y-4">
-            <Badge variant="cream">Resume Viewer</Badge>
+            <Badge variant="cream">Delivery Notes</Badge>
             <div className="rounded-[26px] border-[3px] border-ink bg-white/68 p-5 shadow-[6px_6px_0_var(--ink)]">
-              <div className="min-h-52 rounded-[20px] border-[3px] border-dashed border-ink/35 bg-panel/70 p-5">
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-ink/60">
-                  Viewer panel
+              <div className="space-y-4 text-sm leading-7 text-ink/74">
+                <p>
+                  The public resume button now routes through the server first, so CV
+                  downloads can be tracked in dashboard analytics instead of bypassing
+                  the app completely.
                 </p>
-                <p className="mt-4 text-sm leading-7 text-ink/72">
-                  This area reserves space for the resume viewer. It stays
-                  lightweight while the upload and review flow is being shaped.
+                <p>
+                  This screen manages the file destination only. Full binary upload and
+                  cloud storage are still separate work, so use a hosted PDF URL for now.
                 </p>
+                {isFetching ? (
+                  <p className="font-semibold uppercase tracking-[0.16em] text-ink/60">
+                    Refreshing resume asset...
+                  </p>
+                ) : null}
               </div>
             </div>
           </CardContent>

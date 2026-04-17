@@ -1,0 +1,199 @@
+name: Deploy Production
+
+# Required repository secrets:
+# DEPLOY_USER
+# DEPLOY_PATH
+# DEPLOY_SSH_KEY
+#
+# Optional repository secrets:
+# DEPLOY_HOST (defaults to remote.rizaru-desu.my.id)
+# DEPLOY_PORT
+# DEPLOY_KNOWN_HOSTS
+# CF_ACCESS_CLIENT_ID
+# CF_ACCESS_CLIENT_SECRET
+#
+# Optional repository variable:
+# DEPLOY_USE_CLOUDFLARE_TUNNEL
+# CLOUDFLARED_VERSION
+# KEEP_RELEASES
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      NODE_VERSION: "20"
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST || 'remote.rizaru-desu.my.id' }}
+      DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || vars.DEPLOY_PORT || '22' }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+      KEEP_RELEASES: ${{ vars.KEEP_RELEASES }}
+      DEPLOY_USE_CLOUDFLARE_TUNNEL: ${{ vars.DEPLOY_USE_CLOUDFLARE_TUNNEL || 'true' }}
+      CLOUDFLARED_VERSION: ${{ vars.CLOUDFLARED_VERSION }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Compute release version
+        id: release_meta
+        run: |
+          set -euo pipefail
+          APP_VERSION="$(node -p "require('./package.json').version")"
+          SHORT_SHA="${GITHUB_SHA::7}"
+          RELEASE_VERSION="v${APP_VERSION}-build.${GITHUB_RUN_NUMBER}-${SHORT_SHA}"
+          RELEASE_NAME="release-${RELEASE_VERSION}"
+          ARTIFACT_NAME="next-standalone-${RELEASE_VERSION}.tar.gz"
+          BUILD_TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+          {
+            echo "app_version=${APP_VERSION}"
+            echo "short_sha=${SHORT_SHA}"
+            echo "release_version=${RELEASE_VERSION}"
+            echo "release_name=${RELEASE_NAME}"
+            echo "artifact_name=${ARTIFACT_NAME}"
+            echo "build_timestamp=${BUILD_TIMESTAMP}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build standalone release artifact
+        env:
+          RELEASE_VERSION: ${{ steps.release_meta.outputs.release_version }}
+          NEXT_PUBLIC_APP_VERSION: ${{ steps.release_meta.outputs.release_version }}
+          GIT_SHA: ${{ github.sha }}
+          NEXT_PUBLIC_GIT_SHA: ${{ github.sha }}
+          BUILD_TIMESTAMP: ${{ steps.release_meta.outputs.build_timestamp }}
+          NEXT_PUBLIC_BUILD_TIMESTAMP: ${{ steps.release_meta.outputs.build_timestamp }}
+        run: pnpm run package:release -- "${{ steps.release_meta.outputs.artifact_name }}" "${{ steps.release_meta.outputs.release_version }}"
+
+      - name: Install cloudflared
+        if: ${{ env.DEPLOY_USE_CLOUDFLARE_TUNNEL == 'true' }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+
+          CLOUDFLARED_DOWNLOAD_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"
+          if [ -n "${CLOUDFLARED_VERSION:-}" ] && [ "${CLOUDFLARED_VERSION}" != "latest" ]; then
+            CLOUDFLARED_DOWNLOAD_URL="https://github.com/cloudflare/cloudflared/releases/download/${CLOUDFLARED_VERSION}/cloudflared-linux-amd64"
+          fi
+
+          curl -fsSL "$CLOUDFLARED_DOWNLOAD_URL" -o "$HOME/.local/bin/cloudflared"
+          chmod +x "$HOME/.local/bin/cloudflared"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/cloudflared" --version
+
+      - name: Prepare SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          touch ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+          if [ -n "${DEPLOY_KNOWN_HOSTS:-}" ]; then
+            printf '%s\n' "$DEPLOY_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+          elif [ "${DEPLOY_USE_CLOUDFLARE_TUNNEL:-false}" = "true" ]; then
+            echo "DEPLOY_KNOWN_HOSTS secret is required when DEPLOY_USE_CLOUDFLARE_TUNNEL=true" >&2
+            exit 1
+          else
+            ssh-keyscan -p "${DEPLOY_PORT:-22}" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+          fi
+
+          cat <<EOF > ~/.ssh/config
+          Host deploy-target
+            HostName ${DEPLOY_HOST}
+            Port ${DEPLOY_PORT:-22}
+            User ${DEPLOY_USER}
+            IdentityFile ~/.ssh/id_ed25519
+            IdentitiesOnly yes
+            BatchMode yes
+            StrictHostKeyChecking yes
+            UserKnownHostsFile ~/.ssh/known_hosts
+            ServerAliveInterval 30
+            ServerAliveCountMax 3
+            LogLevel ERROR
+          EOF
+
+          if [ "${DEPLOY_USE_CLOUDFLARE_TUNNEL:-false}" = "true" ]; then
+            {
+              echo "  ProxyCommand $HOME/.local/bin/cloudflared access ssh --hostname %h"
+              echo "  HostKeyAlias ${DEPLOY_HOST}"
+            } >> ~/.ssh/config
+          else
+            {
+              echo "  HostKeyAlias ${DEPLOY_HOST}"
+            } >> ~/.ssh/config
+          fi
+
+          chmod 600 ~/.ssh/config
+
+      - name: Upload release artifact
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ "${DEPLOY_USE_CLOUDFLARE_TUNNEL:-false}" = "true" ] && { [ -n "${CF_ACCESS_CLIENT_ID:-}" ] || [ -n "${CF_ACCESS_CLIENT_SECRET:-}" ]; }; then
+            if [ -z "${CF_ACCESS_CLIENT_ID:-}" ] || [ -z "${CF_ACCESS_CLIENT_SECRET:-}" ]; then
+              echo "CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET must both be set when using Cloudflare Access service tokens" >&2
+              exit 1
+            fi
+
+            export CF_ACCESS_CLIENT_ID
+            export CF_ACCESS_CLIENT_SECRET
+          fi
+
+          ssh deploy-target "mkdir -p '$DEPLOY_PATH/releases' '$DEPLOY_PATH/shared' '$DEPLOY_PATH/incoming'"
+          scp "build/${{ steps.release_meta.outputs.artifact_name }}" "deploy-target:$DEPLOY_PATH/incoming/${{ steps.release_meta.outputs.artifact_name }}"
+
+      - name: Activate release
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ "${DEPLOY_USE_CLOUDFLARE_TUNNEL:-false}" = "true" ] && { [ -n "${CF_ACCESS_CLIENT_ID:-}" ] || [ -n "${CF_ACCESS_CLIENT_SECRET:-}" ]; }; then
+            if [ -z "${CF_ACCESS_CLIENT_ID:-}" ] || [ -z "${CF_ACCESS_CLIENT_SECRET:-}" ]; then
+              echo "CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET must both be set when using Cloudflare Access service tokens" >&2
+              exit 1
+            fi
+
+            export CF_ACCESS_CLIENT_ID
+            export CF_ACCESS_CLIENT_SECRET
+          fi
+
+          ssh deploy-target \
+            "set -euo pipefail && \
+            RELEASE_DIR='$DEPLOY_PATH/releases/${{ steps.release_meta.outputs.release_name }}' && \
+            mkdir -p \"\$RELEASE_DIR\" && \
+            tar -xzf '$DEPLOY_PATH/incoming/${{ steps.release_meta.outputs.artifact_name }}' -C \"\$RELEASE_DIR\" && \
+            chmod +x \"\$RELEASE_DIR/scripts/deploy/install-release.sh\" && \
+            KEEP_RELEASES='${KEEP_RELEASES:-5}' \"\$RELEASE_DIR/scripts/deploy/install-release.sh\" '$DEPLOY_PATH' '${{ steps.release_meta.outputs.release_name }}' && \
+            rm -f '$DEPLOY_PATH/incoming/${{ steps.release_meta.outputs.artifact_name }}'"

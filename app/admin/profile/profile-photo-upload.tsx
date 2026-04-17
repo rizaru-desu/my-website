@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -12,66 +11,59 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card";
+import { ProfileAvatar } from "@/components/profile-avatar";
 import { Separator } from "@/components/ui/separator";
+import { MAX_PROFILE_PHOTO_FILE_BYTES } from "@/app/admin/profile/profile.schema";
 import { cn } from "@/lib/utils";
 
 type UploadState = "idle" | "uploading" | "ready";
 
-export function ProfilePhotoUpload() {
+type ProfilePhotoUploadProps = {
+  fullName: string;
+  onChange: (value: string | null) => void;
+  value: string | null;
+};
+
+export function ProfilePhotoUpload({
+  fullName,
+  onChange,
+  value,
+}: ProfilePhotoUploadProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const uploadTimeoutRef = useRef<number | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadState, setUploadState] = useState<UploadState>("idle");
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (uploadTimeoutRef.current) {
-        window.clearTimeout(uploadTimeoutRef.current);
-      }
-
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-      }
-    };
-  }, [previewUrl]);
+  const hasPhoto = Boolean(value);
 
   const statusLabel = useMemo(() => {
     if (uploadState === "uploading") {
       return { label: "Uploading", variant: "blue" as const };
     }
 
-    if (uploadState === "ready") {
+    if (uploadState === "ready" || hasPhoto) {
       return { label: "Ready", variant: "cream" as const };
     }
 
     return { label: "Avatar Slot", variant: "red" as const };
-  }, [uploadState]);
+  }, [hasPhoto, uploadState]);
 
   function openFilePicker() {
     inputRef.current?.click();
   }
 
-  function clearFileState() {
-    if (uploadTimeoutRef.current) {
-      window.clearTimeout(uploadTimeoutRef.current);
-      uploadTimeoutRef.current = null;
-    }
-
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-    }
-
-    setPreviewUrl(null);
-    setFileName(null);
-    setUploadState("idle");
-    setError(null);
-
+  function resetInputValue() {
     if (inputRef.current) {
       inputRef.current.value = "";
     }
+  }
+
+  function clearFileState() {
+    onChange(null);
+    setFileName(null);
+    setUploadState("idle");
+    setError(null);
+    resetInputValue();
   }
 
   function processFile(file: File | undefined) {
@@ -79,31 +71,44 @@ export function ProfilePhotoUpload() {
       return;
     }
 
-    if (!file.type.startsWith("image/")) {
-      setError("Image files only. Drop or choose a JPG, PNG, WEBP, or SVG.");
+    if (file.size > MAX_PROFILE_PHOTO_FILE_BYTES) {
+      setError("Keep the image under 1MB before upload.");
+      resetInputValue();
       return;
     }
 
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
+    if (!file.type.startsWith("image/")) {
+      setError("Image files only. Drop or choose a JPG, PNG, WEBP, or SVG.");
+      resetInputValue();
+      return;
     }
 
     setError(null);
-    setPreviewUrl(null);
     setUploadState("uploading");
     setFileName(file.name);
 
-    const nextPreviewUrl = URL.createObjectURL(file);
+    const reader = new FileReader();
 
-    if (uploadTimeoutRef.current) {
-      window.clearTimeout(uploadTimeoutRef.current);
-    }
+    reader.addEventListener("load", () => {
+      if (typeof reader.result !== "string" || !reader.result.startsWith("data:image/")) {
+        setError("The selected file could not be prepared as an image.");
+        setUploadState("idle");
+        resetInputValue();
+        return;
+      }
 
-    uploadTimeoutRef.current = window.setTimeout(() => {
-      setPreviewUrl(nextPreviewUrl);
+      onChange(reader.result);
       setUploadState("ready");
-      uploadTimeoutRef.current = null;
-    }, 900);
+      resetInputValue();
+    });
+
+    reader.addEventListener("error", () => {
+      setError("The selected file could not be read.");
+      setUploadState("idle");
+      resetInputValue();
+    });
+
+    reader.readAsDataURL(file);
   }
 
   function handleInputChange(event: ChangeEvent<HTMLInputElement>) {
@@ -132,8 +137,8 @@ export function ProfilePhotoUpload() {
           <Badge variant={statusLabel.variant}>{statusLabel.label}</Badge>
           <CardTitle>Profile photo</CardTitle>
           <CardDescription>
-            Drag and drop an image to review the avatar slot before saving. The
-            current flow keeps the file in this browser session.
+            Drag and drop an image, then save the profile to publish this avatar.
+            Images must stay under 1MB.
           </CardDescription>
         </div>
 
@@ -148,6 +153,7 @@ export function ProfilePhotoUpload() {
             isDragging && "bg-accent-blue/12",
             uploadState === "uploading" && "cursor-progress",
           )}
+          disabled={uploadState === "uploading"}
         >
           <input
             ref={inputRef}
@@ -157,42 +163,43 @@ export function ProfilePhotoUpload() {
             onChange={handleInputChange}
           />
 
-          {previewUrl ? (
+          {hasPhoto ? (
             <div className="space-y-4">
-              <div className="mx-auto h-36 w-36 overflow-hidden rounded-full border-[3px] border-ink bg-panel shadow-[6px_6px_0_var(--ink)]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={previewUrl}
-                  alt="Profile photo preview"
-                  className={cn(
-                    "h-full w-full object-cover",
-                    uploadState === "uploading" && "opacity-60 grayscale",
-                  )}
-                />
-              </div>
+              <ProfileAvatar
+                name={fullName}
+                src={value}
+                className={cn(
+                  "mx-auto h-36 w-36 rounded-full",
+                  uploadState === "uploading" && "opacity-60 grayscale",
+                )}
+                fallbackClassName="text-5xl"
+              />
               <div className="space-y-2">
                 <p className="text-sm font-semibold uppercase tracking-[0.16em] text-ink/70">
-                  {fileName ?? "Selected image"}
+                  {fileName ?? "Saved profile photo"}
                 </p>
                 <p className="text-sm leading-7 text-ink/72">
                   {uploadState === "uploading"
                     ? "Preparing the image..."
-                    : "The avatar image is ready for review."}
+                    : "Save the profile to publish this image."}
                 </p>
               </div>
             </div>
           ) : (
             <>
-              <div className="grid h-36 w-36 place-items-center rounded-full border-[3px] border-ink bg-panel font-display text-5xl uppercase text-ink shadow-[6px_6px_0_var(--ink)]">
-                RA
-              </div>
+              <ProfileAvatar
+                name={fullName}
+                src={null}
+                className="h-36 w-36 rounded-full"
+                fallbackClassName="text-5xl"
+              />
               <div className="space-y-2">
                 <p className="font-display text-3xl uppercase leading-none text-ink">
                   Drop image here
                 </p>
                 <p className="max-w-sm text-sm leading-7 text-ink/72">
-                  Or click to choose a file. The uploader accepts image files only and
-                  keeps everything in this browser session.
+                  Or click to choose a file. The saved profile photo will appear on
+                  the public pages after you save.
                 </p>
               </div>
             </>
@@ -212,13 +219,13 @@ export function ProfilePhotoUpload() {
             onClick={openFilePicker}
             disabled={uploadState === "uploading"}
           >
-            {previewUrl ? "Replace Image" : "Choose Image"}
+            {hasPhoto ? "Replace Image" : "Choose Image"}
           </Button>
           <Button
             type="button"
             variant="muted"
             onClick={clearFileState}
-            disabled={!previewUrl || uploadState === "uploading"}
+            disabled={!hasPhoto || uploadState === "uploading"}
           >
             Remove
           </Button>

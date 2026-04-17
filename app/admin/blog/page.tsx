@@ -1,10 +1,26 @@
+import { headers } from "next/headers";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { EditorialCard } from "@/components/ui/editorial-card";
+import { AdminBlogAccessError, getAdminBlogContext } from "@/lib/blog";
 import { BlogsCms } from "./blogs-cms";
 
-export default function AdminBlogPage() {
+export default async function AdminBlogPage() {
+  const requestHeaders = await headers();
+  let context: Awaited<ReturnType<typeof getAdminBlogContext>>;
+
+  try {
+    context = await getAdminBlogContext(requestHeaders);
+  } catch (error) {
+    if (error instanceof AdminBlogAccessError && error.status === 401) {
+      redirect("/login?redirectTo=%2Fadmin%2Fblog");
+    }
+
+    redirect("/admin");
+  }
+
   return (
     <div className="space-y-8">
       <section className="surface-panel surface-panel-blue">
@@ -59,7 +75,10 @@ export default function AdminBlogPage() {
         </h2>
       </div>
 
-      <BlogsCms />
+      <BlogsCms
+        currentUserName={context.currentUserName}
+        permissions={context.permissions}
+      />
     </div>
   );
 }

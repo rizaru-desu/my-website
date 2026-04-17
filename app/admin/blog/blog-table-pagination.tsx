@@ -10,11 +10,10 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
-import type { BlogRecord } from "./blog.default-values";
+import type { AdminBlogRecord } from "@/lib/blog.shared";
 
 type BlogTablePaginationProps = {
-  table: TanstackTable<BlogRecord>;
+  table: TanstackTable<AdminBlogRecord>;
 };
 
 const pageSizeOptions = [5, 10, 20];

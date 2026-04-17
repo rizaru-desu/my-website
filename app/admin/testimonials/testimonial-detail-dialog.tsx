@@ -10,33 +10,34 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  formatTestimonialDate,
+  getTestimonialRelationLabel,
+  getTestimonialStatusLabel,
+  renderTestimonialStars,
+  type AdminTestimonialRecord,
+} from "@/lib/testimonials.shared";
 
-import type { TestimonialRecord } from "./testimonial.default-values";
-
-function getStatusBadgeVariant(status: TestimonialRecord["status"]) {
-  if (status === "approved") {
+function getStatusBadgeVariant(status: AdminTestimonialRecord["status"]) {
+  if (status === "APPROVED") {
     return "blue";
   }
 
-  if (status === "rejected") {
+  if (status === "REJECTED") {
     return "red";
   }
 
   return "yellow";
 }
 
-function renderStars(rating: number) {
-  return Array.from({ length: 5 }, (_, index) => (index < rating ? "★" : "☆")).join("");
-}
-
 type TestimonialDetailDialogProps = {
-  onApprove: (testimonial: TestimonialRecord) => void;
+  onApprove: (testimonial: AdminTestimonialRecord) => void;
   onClose: () => void;
-  onReject: (testimonial: TestimonialRecord) => void;
-  onReopen: (testimonial: TestimonialRecord) => void;
-  onToggleFeatured: (testimonial: TestimonialRecord) => void;
+  onReject: (testimonial: AdminTestimonialRecord) => void;
+  onReopen: (testimonial: AdminTestimonialRecord) => void;
+  onToggleFeatured: (testimonial: AdminTestimonialRecord) => void;
   open: boolean;
-  testimonial: TestimonialRecord | null;
+  testimonial: AdminTestimonialRecord | null;
 };
 
 export function TestimonialDetailDialog({
@@ -56,24 +57,29 @@ export function TestimonialDetailDialog({
             <DialogHeader>
               <div className="flex flex-wrap gap-3">
                 <Badge variant={getStatusBadgeVariant(testimonial.status)}>
-                  {testimonial.status}
+                  {getTestimonialStatusLabel(testimonial.status)}
                 </Badge>
                 {testimonial.featured ? <Badge variant="red">Featured</Badge> : null}
+                <Badge variant="cream">
+                  {getTestimonialRelationLabel(testimonial.relation)}
+                </Badge>
               </div>
               <DialogTitle>{testimonial.name}</DialogTitle>
               <DialogDescription>
-                {testimonial.role} at {testimonial.company} submitted on {testimonial.submittedAt}.
+                {testimonial.company
+                  ? `${testimonial.role} at ${testimonial.company}`
+                  : testimonial.role}
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-5">
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <div className="rounded-[22px] border-[3px] border-ink bg-white/70 px-4 py-4 shadow-[6px_6px_0_var(--ink)]">
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/55">
                     Rating
                   </p>
                   <p className="mt-2 font-display text-3xl uppercase leading-none text-ink">
-                    {renderStars(testimonial.rating)}
+                    {renderTestimonialStars(testimonial.rating)}
                   </p>
                 </div>
                 <div className="rounded-[22px] border-[3px] border-ink bg-white/70 px-4 py-4 shadow-[6px_6px_0_var(--ink)]">
@@ -86,10 +92,20 @@ export function TestimonialDetailDialog({
                 </div>
                 <div className="rounded-[22px] border-[3px] border-ink bg-white/70 px-4 py-4 shadow-[6px_6px_0_var(--ink)]">
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/55">
-                    Company
+                    Submitted
                   </p>
                   <p className="mt-2 text-sm font-semibold uppercase tracking-[0.14em] text-ink/72">
-                    {testimonial.company}
+                    {formatTestimonialDate(testimonial.createdAt)}
+                  </p>
+                </div>
+                <div className="rounded-[22px] border-[3px] border-ink bg-white/70 px-4 py-4 shadow-[6px_6px_0_var(--ink)]">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/55">
+                    Reviewed
+                  </p>
+                  <p className="mt-2 text-sm font-semibold uppercase tracking-[0.14em] text-ink/72">
+                    {testimonial.reviewedAt
+                      ? formatTestimonialDate(testimonial.reviewedAt)
+                      : "Not yet"}
                   </p>
                 </div>
               </div>
@@ -106,28 +122,30 @@ export function TestimonialDetailDialog({
 
             <DialogFooter className="justify-between">
               <div className="flex flex-wrap gap-3">
-                {testimonial.status !== "approved" ? (
+                {testimonial.status !== "APPROVED" ? (
                   <Button type="button" variant="blue" onClick={() => onApprove(testimonial)}>
                     Approve
                   </Button>
                 ) : null}
-                {testimonial.status !== "rejected" ? (
+                {testimonial.status !== "REJECTED" ? (
                   <Button type="button" variant="default" onClick={() => onReject(testimonial)}>
                     Reject
                   </Button>
                 ) : null}
-                {testimonial.status !== "pending" ? (
+                {testimonial.status !== "PENDING" ? (
                   <Button type="button" variant="outline" onClick={() => onReopen(testimonial)}>
                     Reopen
                   </Button>
                 ) : null}
-                <Button
-                  type="button"
-                  variant={testimonial.featured ? "ink" : "muted"}
-                  onClick={() => onToggleFeatured(testimonial)}
-                >
-                  {testimonial.featured ? "Unfeature" : "Feature"}
-                </Button>
+                {testimonial.status === "APPROVED" ? (
+                  <Button
+                    type="button"
+                    variant={testimonial.featured ? "ink" : "muted"}
+                    onClick={() => onToggleFeatured(testimonial)}
+                  >
+                    {testimonial.featured ? "Unfeature" : "Feature"}
+                  </Button>
+                ) : null}
               </div>
               <Button type="button" variant="muted" onClick={onClose}>
                 Close

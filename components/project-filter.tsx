@@ -4,10 +4,10 @@ import { useState } from "react";
 
 import { ProjectCard } from "@/components/project-card";
 import { Badge } from "@/components/ui/badge";
-import type { Project } from "@/lib/mock-content";
+import type { PublicProjectSummary } from "@/lib/projects.shared";
 
 type ProjectFilterProps = {
-  projects: Project[];
+  projects: PublicProjectSummary[];
 };
 
 export function ProjectFilter({ projects }: ProjectFilterProps) {

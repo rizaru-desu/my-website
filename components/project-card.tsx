@@ -2,10 +2,13 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { EditorialCard } from "@/components/ui/editorial-card";
-import type { Project } from "@/lib/mock-content";
+import {
+  getProjectRepositoryLabel,
+  type PublicProjectSummary,
+} from "@/lib/projects.shared";
 
 type ProjectCardProps = {
-  project: Project;
+  project: PublicProjectSummary;
 };
 
 export function ProjectCard({ project }: ProjectCardProps) {
@@ -38,10 +41,32 @@ export function ProjectCard({ project }: ProjectCardProps) {
         ))}
       </div>
       <div className="mt-auto flex items-center justify-between gap-3 border-t-[3px] border-dashed border-ink/30 pt-5">
-        <p className="max-w-xs text-sm leading-6 text-ink/70">{project.impact}</p>
-        <Link href={`/projects/${project.slug}`} className="button-link button-link-blue">
-          Open Case
-        </Link>
+        <p className="max-w-xs text-sm leading-6 text-ink/70">{project.impactSummary}</p>
+        <div className="flex flex-wrap justify-end gap-3">
+          {project.projectUrl ? (
+            <a
+              href={project.projectUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="button-link"
+            >
+              Live Demo
+            </a>
+          ) : null}
+          {project.githubUrl ? (
+            <a
+              href={project.githubUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="button-link button-link-muted"
+            >
+              {getProjectRepositoryLabel(project.githubUrl)}
+            </a>
+          ) : null}
+          <Link href={`/projects/${project.slug}`} className="button-link button-link-blue">
+            Open Case
+          </Link>
+        </div>
       </div>
     </EditorialCard>
   );

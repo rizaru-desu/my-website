@@ -18,18 +18,18 @@ import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/c
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 
-import type { ProjectRecord } from "./project.default-values";
 import type { ProjectStatus } from "./project.schema";
 import { createProjectTableColumns } from "./project-table-columns";
 import { ProjectTable } from "./project-table";
+import type { AdminProjectRecord } from "@/lib/projects.shared";
 
 type ProjectListProps = {
   isLoading: boolean;
-  items: ProjectRecord[];
+  items: AdminProjectRecord[];
   onAddProject: () => void;
-  onDeleteProject: (project: ProjectRecord) => void;
-  onDuplicateProject: (project: ProjectRecord) => void;
-  onEditProject: (project: ProjectRecord) => void;
+  onDeleteProject: (project: AdminProjectRecord) => void;
+  onDuplicateProject: (project: AdminProjectRecord) => void;
+  onEditProject: (project: AdminProjectRecord) => void;
 };
 
 export function ProjectList({
@@ -45,7 +45,7 @@ export function ProjectList({
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [sorting, setSorting] = useState<SortingState>([
     {
-      id: "lastUpdated",
+      id: "updatedAt",
       desc: true,
     },
   ]);
@@ -151,8 +151,8 @@ export function ProjectList({
               <Badge variant="cream">Project Directory</Badge>
               <CardTitle>Search, sort, and open any project entry.</CardTitle>
               <CardDescription>
-                This table drives the local editor flow for add, edit, duplicate,
-                and delete interactions.
+                This table now reflects the live projects database with search, sort,
+                duplicate, and delete controls.
               </CardDescription>
             </div>
             <Button onClick={onAddProject}>Add Project</Button>

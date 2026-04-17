@@ -1,12 +1,38 @@
 import Link from "next/link";
 
+import { ProfileAvatar } from "@/components/profile-avatar";
 import { Badge } from "@/components/ui/badge";
 import { EditorialCard } from "@/components/ui/editorial-card";
 import { PageHero } from "@/components/ui/page-hero";
 import { SectionShell } from "@/components/ui/section-shell";
-import { education, experiences, profile, skillGroups } from "@/lib/mock-content";
+import { getPublicProfileContent } from "@/lib/profile";
+import { getPublicSkills } from "@/lib/skills";
+import { getPublicExperiences, getPublicEducation } from "@/lib/resume";
 
-export default function ResumePage() {
+export default async function ResumePage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    download?: string;
+  }>;
+}) {
+  const { download } = await searchParams;
+  const showDownloadUnavailable = download === "unavailable";
+  const [profile, skills, experiences, education] = await Promise.all([
+    getPublicProfileContent(),
+    getPublicSkills(),
+    getPublicExperiences(),
+    getPublicEducation(),
+  ]);
+  const groupedSkills = Array.from(
+    skills.reduce((map, skill) => {
+      const existingGroup = map.get(skill.values.category) ?? [];
+      existingGroup.push(skill);
+      map.set(skill.values.category, existingGroup);
+      return map;
+    }, new Map<string, typeof skills>()),
+  );
+
   return (
     <div className="px-4 pb-6 pt-8 sm:px-6 sm:pt-10">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-12">
@@ -16,29 +42,46 @@ export default function ResumePage() {
           description="This route is intentionally recruiter-friendly: scan fast, understand scope, and jump back into work samples when needed."
         >
           <div className="flex flex-wrap gap-4">
-            <button
-              type="button"
-              aria-disabled="true"
-              className="button-link button-link-muted cursor-not-allowed"
-            >
+            <a href="/api/cv/download" className="button-link button-link-blue">
               Download CV
-            </button>
+            </a>
             <Link href="/projects" className="button-link">
               Open Projects
             </Link>
           </div>
         </PageHero>
 
+        {showDownloadUnavailable ? (
+          <EditorialCard accent="red" className="space-y-3">
+            <Badge variant="red">Download Unavailable</Badge>
+            <h2 className="font-display text-3xl uppercase leading-none text-ink">
+              CV download is not configured yet.
+            </h2>
+            <p className="text-sm leading-7 text-ink/78">
+              Add `RESUME_DOWNLOAD_URL` on the server, then try the download button
+              again. The resume page itself still stays available for recruiters to scan.
+            </p>
+          </EditorialCard>
+        ) : null}
+
         <section className="grid gap-6 lg:grid-cols-[0.72fr_1.28fr]">
           <EditorialCard accent="blue" className="space-y-5">
             <Badge variant="blue">Profile</Badge>
-            <div className="space-y-3">
-              <h2 className="font-display text-4xl uppercase leading-none text-ink">
-                {profile.name}
-              </h2>
-              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-ink/60">
-                {profile.role}
-              </p>
+            <div className="flex items-start gap-4">
+              <ProfileAvatar
+                name={profile.name}
+                src={profile.profilePhotoUrl}
+                className="h-20 w-20 rounded-[22px]"
+                fallbackClassName="text-3xl"
+              />
+              <div className="space-y-3">
+                <h2 className="font-display text-4xl uppercase leading-none text-ink">
+                  {profile.name}
+                </h2>
+                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-ink/60">
+                  {profile.role}
+                </p>
+              </div>
             </div>
             <p className="text-base leading-7 text-ink/80">{profile.intro}</p>
             <div className="space-y-3 border-t-[3px] border-dashed border-ink/25 pt-5">
@@ -142,20 +185,27 @@ export default function ResumePage() {
             title="The stack behind the polish."
             contentClassName="grid gap-6 md:grid-cols-2 xl:grid-cols-3"
           >
-            {skillGroups.map((group, index) => (
+            {groupedSkills.map(([category, groupSkills], index) => (
               <EditorialCard
-                key={group.title}
+                key={category}
                 accent={index === 0 ? "cream" : index === 1 ? "red" : "blue"}
                 className="space-y-4"
               >
                 <h3 className="font-display text-3xl uppercase leading-none text-ink">
-                  {group.title}
+                  {category}
                 </h3>
-                <p className="text-sm leading-7 text-ink/80">{group.description}</p>
+                <p className="text-sm leading-7 text-ink/80">
+                  {groupSkills.filter((skill) => skill.values.featured).length > 0
+                    ? "Featured strengths from the live skills workspace."
+                    : "Capability group managed from the live skills workspace."}
+                </p>
                 <div className="flex flex-wrap gap-2">
-                  {group.skills.map((skill) => (
-                    <Badge key={skill} variant="cream">
-                      {skill}
+                  {groupSkills.map((skill) => (
+                    <Badge
+                      key={skill.id}
+                      variant={skill.values.featured ? "blue" : "cream"}
+                    >
+                      {skill.values.name}
                     </Badge>
                   ))}
                 </div>

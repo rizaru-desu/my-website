@@ -10,7 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 
-import { projectSchema, projectStatusValues, type ProjectFormValues } from "./project.schema";
+import {
+  projectAccentValues,
+  projectSchema,
+  projectStatusValues,
+  type ProjectFormValues,
+} from "./project.schema";
 
 function getErrorMessage(errors: unknown[] | undefined) {
   if (!errors?.length) {
@@ -84,6 +89,58 @@ function parseLineList(value: string) {
     .filter(Boolean);
 }
 
+function parseMetricList(value: string): ProjectFormValues["metrics"] {
+  return value
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const separatorIndex = line.indexOf(":");
+
+      if (separatorIndex === -1) {
+        return {
+          label: line,
+          value: "",
+        };
+      }
+
+      return {
+        label: line.slice(0, separatorIndex).trim(),
+        value: line.slice(separatorIndex + 1).trim(),
+      };
+    });
+}
+
+function formatMetricList(value: ProjectFormValues["metrics"]) {
+  return value.map((metric) => `${metric.label}: ${metric.value}`).join("\n");
+}
+
+function parseGalleryList(value: string): ProjectFormValues["gallery"] {
+  return value
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const separatorIndex = line.indexOf("|");
+
+      if (separatorIndex === -1) {
+        return {
+          caption: "",
+          title: line,
+        };
+      }
+
+      return {
+        caption: line.slice(separatorIndex + 1).trim(),
+        title: line.slice(0, separatorIndex).trim(),
+      };
+    });
+}
+
+function formatGalleryList(value: ProjectFormValues["gallery"]) {
+  return value.map((item) => `${item.title} | ${item.caption}`).join("\n");
+}
+
 type ProjectFormProps = {
   defaultValues: ProjectFormValues;
   mode: "create" | "edit";
@@ -126,7 +183,7 @@ export function ProjectForm({
             <Badge variant={mode === "create" ? "blue" : "red"}>
               {mode === "create" ? "New Project" : "Edit Project"}
             </Badge>
-            <Badge variant="cream">Local Save</Badge>
+            <Badge variant="cream">Live API</Badge>
           </div>
           <CardTitle>
             {mode === "create"
@@ -134,8 +191,8 @@ export function ProjectForm({
               : "Refine the project story, metadata, and publishing details."}
           </CardTitle>
           <CardDescription>
-            This editor is UI-only. Save, update, and delete interactions stay local to
-            the current session with inline Zod validation.
+            Every save now writes to the live project database with inline Zod
+            validation and the same public/admin data model.
           </CardDescription>
         </CardContent>
       </Card>
@@ -146,12 +203,12 @@ export function ProjectForm({
             Core Story
           </p>
           <p className="text-sm leading-7 text-ink/72">
-            Cover the headline framing, slug, summary, and body copy that shape the
-            public case-study presentation.
+            Cover the headline framing, slug, summary, and the main narrative used
+            throughout the public case-study presentation.
           </p>
         </div>
 
-        <div className="grid gap-5 md:grid-cols-2">
+        <div className="grid gap-5 md:grid-cols-3">
           <form.Field name="title">
             {(field) => (
               <div className="space-y-2">
@@ -258,18 +315,88 @@ export function ProjectForm({
           )}
         </form.Field>
 
-        <form.Field name="description">
+        <form.Field name="impactSummary">
           {(field) => (
             <div className="space-y-2">
-              <FieldLabel htmlFor={field.name}>Description</FieldLabel>
+              <FieldLabel htmlFor={field.name}>Impact Summary</FieldLabel>
               <Textarea
                 id={field.name}
                 value={field.state.value}
                 onBlur={field.handleBlur}
                 onChange={(event) => field.handleChange(event.target.value)}
-                placeholder="Expand the challenge, process, and outcome narrative."
-                className="min-h-48"
+                placeholder="Clarified content hierarchy and reduced admin friction in the core showcase experience."
+                className="min-h-28"
               />
+              <p className="text-sm leading-6 text-ink/60">
+                Used on project cards and the public case-study snapshot.
+              </p>
+              <FieldError
+                errors={field.state.meta.errors}
+                touched={field.state.meta.isTouched}
+              />
+            </div>
+          )}
+        </form.Field>
+
+        <div className="grid gap-5 md:grid-cols-2">
+          <form.Field name="challenge">
+            {(field) => (
+              <div className="space-y-2">
+                <FieldLabel htmlFor={field.name}>Challenge</FieldLabel>
+                <Textarea
+                  id={field.name}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  placeholder="Most portfolio sites either look generic or bury proof beneath decoration..."
+                  className="min-h-40"
+                />
+                <FieldError
+                  errors={field.state.meta.errors}
+                  touched={field.state.meta.isTouched}
+                />
+              </div>
+            )}
+          </form.Field>
+
+          <form.Field name="outcome">
+            {(field) => (
+              <div className="space-y-2">
+                <FieldLabel htmlFor={field.name}>Outcome</FieldLabel>
+                <Textarea
+                  id={field.name}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  placeholder="The final concept balances personality with trust..."
+                  className="min-h-40"
+                />
+                <FieldError
+                  errors={field.state.meta.errors}
+                  touched={field.state.meta.isTouched}
+                />
+              </div>
+            )}
+          </form.Field>
+        </div>
+
+        <form.Field name="process">
+          {(field) => (
+            <div className="space-y-2">
+              <FieldLabel htmlFor={field.name}>Process Steps</FieldLabel>
+              <Textarea
+                id={field.name}
+                value={field.state.value.join("\n")}
+                onBlur={field.handleBlur}
+                onChange={(event) => field.handleChange(parseLineList(event.target.value))}
+                placeholder={
+                  "Mapped the recruiter journey into three beats...\nBuilt a visual language around poster-style framing..."
+                }
+                className="min-h-40"
+              />
+              <p className="text-sm leading-6 text-ink/60">
+                Put each process step on its own line.
+              </p>
               <FieldError
                 errors={field.state.meta.errors}
                 touched={field.state.meta.isTouched}
@@ -330,6 +457,25 @@ export function ProjectForm({
               </div>
             )}
           </form.Field>
+
+          <form.Field name="duration">
+            {(field) => (
+              <div className="space-y-2">
+                <FieldLabel htmlFor={field.name}>Duration</FieldLabel>
+                <Input
+                  id={field.name}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  placeholder="4 weeks"
+                />
+                <FieldError
+                  errors={field.state.meta.errors}
+                  touched={field.state.meta.isTouched}
+                />
+              </div>
+            )}
+          </form.Field>
         </div>
 
         <div className="space-y-3">
@@ -360,6 +506,36 @@ export function ProjectForm({
                     </Button>
                   );
                 })}
+              </div>
+            )}
+          </form.Field>
+        </div>
+
+        <div className="space-y-3">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-ink/65">
+            Accent
+          </p>
+          <form.Field name="accent">
+            {(field) => (
+              <div className="flex flex-wrap gap-3">
+                {projectAccentValues.map((accent) => (
+                  <Button
+                    key={accent}
+                    type="button"
+                    variant={
+                      field.state.value === accent
+                        ? accent === "blue"
+                          ? "blue"
+                          : accent === "cream"
+                            ? "outline"
+                            : "default"
+                        : "muted"
+                    }
+                    onClick={() => field.handleChange(accent)}
+                  >
+                    {accent}
+                  </Button>
+                ))}
               </div>
             )}
           </form.Field>
@@ -447,8 +623,8 @@ export function ProjectForm({
             Tags, Stack & Links
           </p>
           <p className="text-sm leading-7 text-ink/72">
-            These fields support search, filtering, and the detail-page metadata shown
-            throughout the public portfolio.
+            These fields support search, filtering, metrics, and the detail-page
+            metadata shown throughout the public portfolio.
           </p>
         </div>
 
@@ -522,6 +698,56 @@ export function ProjectForm({
             </div>
           )}
         </form.Field>
+
+        <div className="grid gap-5 md:grid-cols-2">
+          <form.Field name="metrics">
+            {(field) => (
+              <div className="space-y-2">
+                <FieldLabel htmlFor={field.name}>Metrics</FieldLabel>
+                <Textarea
+                  id={field.name}
+                  value={formatMetricList(field.state.value)}
+                  onBlur={field.handleBlur}
+                  onChange={(event) => field.handleChange(parseMetricList(event.target.value))}
+                  placeholder={"Public sections: 6\nDatabase entities: 24\nHero scan time: <10 sec"}
+                  className="min-h-36"
+                />
+                <p className="text-sm leading-6 text-ink/60">
+                  Use one metric per line in `Label: Value` format.
+                </p>
+                <FieldError
+                  errors={field.state.meta.errors}
+                  touched={field.state.meta.isTouched}
+                />
+              </div>
+            )}
+          </form.Field>
+
+          <form.Field name="gallery">
+            {(field) => (
+              <div className="space-y-2">
+                <FieldLabel htmlFor={field.name}>Gallery</FieldLabel>
+                <Textarea
+                  id={field.name}
+                  value={formatGalleryList(field.state.value)}
+                  onBlur={field.handleBlur}
+                  onChange={(event) => field.handleChange(parseGalleryList(event.target.value))}
+                  placeholder={
+                    "Hero Composition | Layered title treatment tuned for fast first impressions.\nContent Grid | Poster-like cards that make projects feel curated."
+                  }
+                  className="min-h-36"
+                />
+                <p className="text-sm leading-6 text-ink/60">
+                  Use one gallery item per line in `Title | Caption` format.
+                </p>
+                <FieldError
+                  errors={field.state.meta.errors}
+                  touched={field.state.meta.isTouched}
+                />
+              </div>
+            )}
+          </form.Field>
+        </div>
 
         <div className="grid gap-5 md:grid-cols-2">
           <form.Field name="projectUrl">

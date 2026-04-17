@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Archivo_Black, Space_Grotesk } from "next/font/google";
 import type { ReactNode } from "react";
+import "@mdxeditor/editor/style.css";
 
 import { AppShell } from "@/components/app-shell";
 import { QueryProvider } from "@/components/query-provider";
@@ -31,6 +32,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
+        suppressHydrationWarning
         className={`${archivoBlack.variable} ${spaceGrotesk.variable} page-shell antialiased`}
       >
         <QueryProvider>

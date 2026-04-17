@@ -1,3 +1,5 @@
+"use client";
+
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,11 +12,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+import { SocialLinkIcon } from "@/components/social-link-icon";
 import { formatAppVersionLabel, getAppVersionInfo } from "@/lib/app-version";
-import { profile } from "@/lib/mock-content";
+import { usePublicProfile } from "@/lib/profile-client";
 
 export function SiteFooter() {
   const version = getAppVersionInfo();
+  const profile = usePublicProfile();
 
   return (
     <footer className="px-4 pb-10 pt-16 sm:px-6">
@@ -76,6 +80,7 @@ export function SiteFooter() {
                   target={link.href.startsWith("http") ? "_blank" : undefined}
                   rel={link.href.startsWith("http") ? "noreferrer" : undefined}
                 >
+                  <SocialLinkIcon href={link.href} label={link.label} />
                   {link.label}
                 </a>
               </Button>

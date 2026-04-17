@@ -46,10 +46,10 @@ export default function AdminProjectsPage() {
           <p className="text-sm font-semibold uppercase tracking-[0.22em] text-ink/60">
             Save Mode
           </p>
-              <p className="font-display text-xl uppercase leading-none text-ink">
-                Local Editing Flow
-              </p>
-            </EditorialCard>
+          <p className="font-display text-xl uppercase leading-none text-ink">
+            Live API Sync
+          </p>
+        </EditorialCard>
       </div>
 
       <div className="space-y-3">

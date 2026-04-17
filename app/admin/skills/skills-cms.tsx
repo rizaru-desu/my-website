@@ -1,5 +1,6 @@
 "use client";
 
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -16,12 +17,18 @@ import {
 
 import {
   createSkillDefaultValues,
-  skillSeedRecords,
-  type SkillRecord,
 } from "./skill.default-values";
 import { SkillEditorPanel } from "./skill-editor-panel";
 import { SkillList } from "./skill-list";
 import type { SkillFormValues } from "./skill.schema";
+import type { SkillRecord } from "@/lib/skills.shared";
+import {
+  adminSkillsQueryKey,
+  createAdminSkillRequest,
+  deleteAdminSkillRequest,
+  fetchAdminSkills,
+  updateAdminSkillRequest,
+} from "./skills.queries";
 
 type EditorState =
   | { mode: "create" }
@@ -34,22 +41,21 @@ type FlashState = {
   tone: "blue" | "red" | "cream";
 };
 
-function createSkillId(name: string) {
-  return `skill-${name.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`;
-}
-
 export function SkillsCms() {
-  const [items, setItems] = useState(skillSeedRecords);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [editorState, setEditorState] = useState<EditorState>(null);
   const [skillPendingDelete, setSkillPendingDelete] = useState<SkillRecord | null>(null);
   const [flash, setFlash] = useState<FlashState | null>(null);
-
-  useEffect(() => {
-    const timeout = window.setTimeout(() => setIsLoading(false), 550);
-
-    return () => window.clearTimeout(timeout);
-  }, []);
+  const {
+    data: items = [],
+    error,
+    isFetching,
+    isLoading,
+  } = useQuery({
+    queryFn: fetchAdminSkills,
+    queryKey: adminSkillsQueryKey,
+    refetchOnWindowFocus: false,
+  });
 
   useEffect(() => {
     if (!flash) {
@@ -70,41 +76,78 @@ export function SkillsCms() {
   }, [editorState, items]);
 
   const editorDefaultValues = editingSkill?.values ?? createSkillDefaultValues();
-
-  async function handleSubmit(values: SkillFormValues) {
-    await new Promise((resolve) => setTimeout(resolve, 650));
-
-    if (editorState?.mode === "edit" && editingSkill) {
-      setItems((currentItems) =>
-        currentItems.map((item) =>
-          item.id === editingSkill.id
-            ? {
-                ...item,
-                values,
-              }
-            : item,
-        ),
-      );
-
+  const createMutation = useMutation({
+    mutationFn: createAdminSkillRequest,
+    onSuccess: async (result) => {
       setFlash({
-        title: "Skill updated",
-        detail: `${values.name} was updated in the local skills board.`,
-        tone: "blue",
-      });
-    } else {
-      setItems((currentItems) => [
-        {
-          id: createSkillId(values.name),
-          values,
-        },
-        ...currentItems,
-      ]);
-
-      setFlash({
+        detail: result.message,
         title: "Skill created",
-        detail: `${values.name} was added to the local skills board.`,
         tone: "red",
       });
+      await queryClient.invalidateQueries({ queryKey: adminSkillsQueryKey });
+    },
+    onError: (mutationError) => {
+      setFlash({
+        detail:
+          mutationError instanceof Error
+            ? mutationError.message
+            : "The skill could not be created right now.",
+        title: "Create failed",
+        tone: "red",
+      });
+    },
+  });
+  const updateMutation = useMutation({
+    mutationFn: updateAdminSkillRequest,
+    onSuccess: async (result) => {
+      setFlash({
+        detail: result.message,
+        title: "Skill updated",
+        tone: "blue",
+      });
+      await queryClient.invalidateQueries({ queryKey: adminSkillsQueryKey });
+    },
+    onError: (mutationError) => {
+      setFlash({
+        detail:
+          mutationError instanceof Error
+            ? mutationError.message
+            : "The skill could not be updated right now.",
+        title: "Update failed",
+        tone: "red",
+      });
+    },
+  });
+  const deleteMutation = useMutation({
+    mutationFn: deleteAdminSkillRequest,
+    onSuccess: async (result) => {
+      setFlash({
+        detail: result.message,
+        title: "Skill removed",
+        tone: "cream",
+      });
+      await queryClient.invalidateQueries({ queryKey: adminSkillsQueryKey });
+    },
+    onError: (mutationError) => {
+      setFlash({
+        detail:
+          mutationError instanceof Error
+            ? mutationError.message
+            : "The skill could not be deleted right now.",
+        title: "Delete failed",
+        tone: "red",
+      });
+    },
+  });
+
+  async function handleSubmit(values: SkillFormValues) {
+    if (editorState?.mode === "edit" && editingSkill) {
+      await updateMutation.mutateAsync({
+        id: editingSkill.id,
+        values,
+      });
+    } else {
+      await createMutation.mutateAsync(values);
     }
 
     setEditorState(null);
@@ -115,16 +158,7 @@ export function SkillsCms() {
       return;
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 420));
-
-    setItems((currentItems) =>
-      currentItems.filter((item) => item.id !== skillPendingDelete.id),
-    );
-    setFlash({
-      title: "Skill removed",
-      detail: `${skillPendingDelete.values.name} was removed from the local skills board.`,
-      tone: "cream",
-    });
+    await deleteMutation.mutateAsync(skillPendingDelete.id);
     setSkillPendingDelete(null);
 
     if (editorState?.mode === "edit" && editorState.skillId === skillPendingDelete.id) {
@@ -146,9 +180,23 @@ export function SkillsCms() {
         </Card>
       ) : null}
 
+      {error ? (
+        <Card accent="red">
+          <CardContent className="space-y-2">
+            <Badge variant="red">Skills Unavailable</Badge>
+            <CardTitle>The skills database could not be loaded.</CardTitle>
+            <CardDescription>
+              {error instanceof Error
+                ? error.message
+                : "The skills board could not be loaded right now."}
+            </CardDescription>
+          </CardContent>
+        </Card>
+      ) : null}
+
       <SkillList
         items={items}
-        isLoading={isLoading}
+        isLoading={isLoading || isFetching}
         onAddSkill={() => setEditorState({ mode: "create" })}
         onEditSkill={(skill) => setEditorState({ mode: "edit", skillId: skill.id })}
         onDeleteSkill={(skill) => setSkillPendingDelete(skill)}
@@ -182,7 +230,7 @@ export function SkillsCms() {
             <DialogTitle>Remove this skill from the skills workspace?</DialogTitle>
             <DialogDescription>
               {skillPendingDelete
-                ? `${skillPendingDelete.values.name} will disappear from the grouped skills board. This is UI-only and not persisted anywhere.`
+                ? `${skillPendingDelete.values.name} will be removed from the persisted skills board.`
                 : "Confirm removal of the selected skill entry."}
             </DialogDescription>
           </DialogHeader>
@@ -190,8 +238,13 @@ export function SkillsCms() {
             <Button type="button" variant="muted" onClick={() => setSkillPendingDelete(null)}>
               Cancel
             </Button>
-            <Button type="button" variant="ink" onClick={handleConfirmDelete}>
-              Delete Skill
+            <Button
+              type="button"
+              variant="ink"
+              onClick={handleConfirmDelete}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? "Deleting..." : "Delete Skill"}
             </Button>
           </DialogFooter>
         </DialogContent>

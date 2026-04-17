@@ -1,15 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { BlogArticleMdx } from "@/components/blog-article-mdx";
 import { BlogCard } from "@/components/blog-card";
+import { BlogDiscussion, BlogDiscussionSummary } from "@/components/blog-discussion";
 import { ReadingProgress } from "@/components/reading-progress";
 import { Badge } from "@/components/ui/badge";
 import { EditorialCard } from "@/components/ui/editorial-card";
-import { getBlogPostBySlug, blogPosts } from "@/lib/mock-content";
-
-export function generateStaticParams() {
-  return blogPosts.map((post) => ({ slug: post.slug }));
-}
+import { getPublicBlogPostBySlug, getPublicBlogPosts } from "@/lib/blog";
+import { getPublicBlogComments } from "@/lib/blog-discussions";
 
 export default async function BlogDetailPage({
   params,
@@ -17,15 +16,21 @@ export default async function BlogDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const post = getBlogPostBySlug(slug);
+  const post = await getPublicBlogPostBySlug(slug);
 
   if (!post) {
     notFound();
   }
 
-  const relatedPosts = blogPosts
+  const publishedPosts = await getPublicBlogPosts();
+  const discussion = await getPublicBlogComments(slug);
+  const relatedPosts = publishedPosts
     .filter((item) => item.slug !== post.slug)
-    .filter((item) => item.tags.some((tag) => post.tags.includes(tag)))
+    .filter(
+      (item) =>
+        item.category === post.category ||
+        item.tags.some((tag) => post.tags.includes(tag)),
+    )
     .slice(0, 2);
 
   return (
@@ -38,8 +43,8 @@ export default async function BlogDetailPage({
             <div className="accent-plate bottom-6 left-10 hidden h-14 w-32 -rotate-3 rounded-full bg-accent-blue lg:block" />
             <div className="relative z-10 space-y-6">
               <div className="flex flex-wrap gap-3">
-                <Badge variant="blue">{post.kicker}</Badge>
-                <Badge variant="cream">{post.date}</Badge>
+                <Badge variant="blue">{post.category}</Badge>
+                <Badge variant="cream">{post.publishDateLabel}</Badge>
                 <Badge variant="cream">{post.readingTime}</Badge>
               </div>
               <div className="space-y-4">
@@ -47,7 +52,7 @@ export default async function BlogDetailPage({
                   {post.title}
                 </h1>
                 <p className="max-w-3xl text-base leading-7 text-ink/80 sm:text-lg">
-                  {post.summary}
+                  {post.excerpt}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -62,44 +67,33 @@ export default async function BlogDetailPage({
 
           <section className="grid gap-6 lg:grid-cols-[0.7fr_1.3fr]">
             <EditorialCard accent="red" className="space-y-4">
-              <Badge variant="red">Pull Quote</Badge>
-              <p className="text-2xl leading-9 text-ink sm:text-3xl sm:leading-10">
-                {post.quote}
+              <Badge variant="red">Article Context</Badge>
+              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-ink/60">
+                Written by {post.authorName}
+              </p>
+              <p className="text-base leading-8 text-ink/80">
+                {post.seoDescription}
               </p>
             </EditorialCard>
             <EditorialCard accent="blue" className="space-y-4">
-              <Badge variant="blue">Quick Take</Badge>
+              <Badge variant="blue">MDX Article Body</Badge>
               <p className="text-base leading-8 text-ink/80 sm:text-lg">
-                {post.callout}
+                This story is rendered from MDX stored in the admin blog workspace,
+                so the article body can use headings, lists, blockquotes, code blocks,
+                and richer editorial structure without switching to raw HTML.
               </p>
             </EditorialCard>
           </section>
 
           <div className="grid gap-8 lg:grid-cols-[1.25fr_0.75fr] lg:items-start">
             <div className="space-y-8">
-              {post.sections.map((section, index) => (
-                <EditorialCard
-                  key={section.heading}
-                  accent={index % 2 === 0 ? "cream" : "blue"}
-                  className="story-prose space-y-5"
-                >
-                  <h2 className="font-display text-4xl uppercase leading-none text-ink">
-                    {section.heading}
-                  </h2>
-                  {section.paragraphs.map((paragraph) => (
-                    <p key={paragraph} className="text-base leading-8 text-ink/80">
-                      {paragraph}
-                    </p>
-                  ))}
-                </EditorialCard>
-              ))}
+              <EditorialCard accent="cream">
+                <BlogArticleMdx source={post.content} />
+              </EditorialCard>
             </div>
             <aside className="space-y-6 lg:sticky lg:top-28">
               <EditorialCard className="space-y-4">
-                <Badge variant="cream">Article Context</Badge>
-                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-ink/60">
-                  Reading this as a recruiter?
-                </p>
+                <Badge variant="cream">Reading this as a recruiter?</Badge>
                 <p className="text-sm leading-7 text-ink/75">
                   The writing here is meant to reinforce how product decisions are
                   framed, not just show visual taste in isolation.
@@ -111,27 +105,32 @@ export default async function BlogDetailPage({
               <EditorialCard accent="red" className="space-y-4">
                 <Badge variant="red">Article Detail</Badge>
                 <p className="text-sm leading-7 text-ink/75">
-                  This article page includes a live scroll progress bar and
-                  route-based detail layout built to keep longer reading
-                  sessions focused and easy to scan.
+                  This article view reads directly from the admin blog workspace, so
+                  publishing or updating a story reflects here without maintaining a
+                  second content source.
                 </p>
               </EditorialCard>
+              <BlogDiscussionSummary totalCount={discussion.totalCount} />
             </aside>
           </div>
 
-          <section className="space-y-8">
-            <div className="space-y-4">
-              <span className="section-label">Related</span>
-              <h2 className="font-display text-4xl uppercase leading-none text-ink sm:text-5xl">
-                More notes in the same lane.
-              </h2>
-            </div>
-            <div className="grid gap-6 lg:grid-cols-2">
-              {relatedPosts.map((item) => (
-                <BlogCard key={item.slug} post={item} />
-              ))}
-            </div>
-          </section>
+          <BlogDiscussion blogSlug={post.slug} comments={discussion.comments} />
+
+          {relatedPosts.length > 0 ? (
+            <section className="space-y-8">
+              <div className="space-y-4">
+                <span className="section-label">Related</span>
+                <h2 className="font-display text-4xl uppercase leading-none text-ink sm:text-5xl">
+                  More notes in the same lane.
+                </h2>
+              </div>
+              <div className="grid gap-6 lg:grid-cols-2">
+                {relatedPosts.map((item) => (
+                  <BlogCard key={item.slug} post={item} />
+                ))}
+              </div>
+            </section>
+          ) : null}
         </article>
       </div>
     </>

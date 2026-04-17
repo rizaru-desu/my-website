@@ -1,30 +1,53 @@
 import Link from "next/link";
+import { unstable_noStore as noStore } from "next/cache";
 
-import { skillSeedRecords } from "@/app/admin/skills/skill.default-values";
 import { BlogCard } from "@/components/blog-card";
+import { ContactSection } from "@/components/contact-section";
+import { ProfileAvatar } from "@/components/profile-avatar";
 import { ProjectCard } from "@/components/project-card";
+import { TestimonialCarousel } from "@/components/testimonial-carousel";
 import { Badge } from "@/components/ui/badge";
 import { EditorialCard } from "@/components/ui/editorial-card";
 import { SectionShell } from "@/components/ui/section-shell";
 import { StatTile } from "@/components/ui/stat-tile";
-import {
-  featuredPosts,
-  featuredProjects,
-  profile,
-  testimonials,
-} from "@/lib/mock-content";
+import { getFeaturedPublicBlogPosts } from "@/lib/blog";
+import { getPublicProfileContent } from "@/lib/profile";
+import { getFeaturedPublicProjects, ProjectsStorageError } from "@/lib/projects";
+import { getPublicSkills } from "@/lib/skills";
+import { getPublicHomepageTestimonials } from "@/lib/testimonials";
 
-export default function Home() {
+function getHomeProjectError(error: unknown) {
+  if (error instanceof ProjectsStorageError) {
+    return error.message;
+  }
+
+  return "Featured projects could not be loaded right now.";
+}
+
+export default async function Home() {
+  noStore();
+
+  const [featuredPosts, testimonials, profile, skills, featuredProjectsResult] = await Promise.all([
+    getFeaturedPublicBlogPosts(2),
+    getPublicHomepageTestimonials(),
+    getPublicProfileContent(),
+    getPublicSkills(),
+    getFeaturedPublicProjects(3)
+      .then((projects) => ({ error: null, projects }))
+      .catch((error) => ({ error: getHomeProjectError(error), projects: [] })),
+  ]);
+  const featuredProjects = featuredProjectsResult.projects;
+  const featuredProjectsError = featuredProjectsResult.error;
   const groupedSkills = Array.from(
-    skillSeedRecords.reduce((map, skill) => {
+    skills.reduce((map, skill) => {
       const existingGroup = map.get(skill.values.category) ?? [];
       existingGroup.push(skill);
       map.set(skill.values.category, existingGroup);
       return map;
-    }, new Map<string, typeof skillSeedRecords>()),
+    }, new Map<string, typeof skills>()),
   );
 
-  const totalFeaturedSkills = skillSeedRecords.filter(
+  const totalFeaturedSkills = skills.filter(
     (skill) => skill.values.featured,
   ).length;
 
@@ -53,7 +76,7 @@ export default function Home() {
               </div>
               <div className="flex flex-wrap gap-4">
                 <Link href="/projects" className="button-link">
-                  View Projects
+                  {profile.primaryCta}
                 </Link>
                 <Link href="/resume" className="button-link button-link-blue">
                   Read Resume
@@ -67,7 +90,15 @@ export default function Home() {
               </div>
             </div>
             <EditorialCard accent="blue" className="relative space-y-5">
-              <Badge variant="blue">Public Meets Workspace</Badge>
+              <div className="flex items-start justify-between gap-4">
+                <Badge variant="blue">Public Meets Workspace</Badge>
+                <ProfileAvatar
+                  name={profile.name}
+                  src={profile.profilePhotoUrl}
+                  className="h-24 w-24 rounded-[24px]"
+                  fallbackClassName="text-4xl"
+                />
+              </div>
               <h2 className="font-display text-4xl uppercase leading-none text-ink">
                 {profile.tagline}
               </h2>
@@ -158,7 +189,7 @@ export default function Home() {
                 aligned instead of drifting into separate content structures.
               </p>
               <div className="flex flex-wrap gap-2">
-                {skillSeedRecords
+                {skills
                   .filter((skill) => skill.values.featured)
                   .map((skill) => (
                     <Badge key={skill.id} variant="cream">
@@ -263,9 +294,29 @@ export default function Home() {
           description="Selected projects are framed to surface role, impact, and delivery logic before the deeper details."
           contentClassName="grid gap-6 lg:grid-cols-3"
         >
-          {featuredProjects.map((project) => (
-            <ProjectCard key={project.slug} project={project} />
-          ))}
+          {featuredProjectsError ? (
+            <EditorialCard accent="red" className="space-y-4 lg:col-span-3">
+              <Badge variant="red">Projects Unavailable</Badge>
+              <h3 className="font-display text-4xl uppercase leading-none text-ink">
+                Featured project data is temporarily unavailable.
+              </h3>
+              <p className="text-sm leading-7 text-ink/76">{featuredProjectsError}</p>
+            </EditorialCard>
+          ) : featuredProjects.length > 0 ? (
+            featuredProjects.map((project) => (
+              <ProjectCard key={project.slug} project={project} />
+            ))
+          ) : (
+            <EditorialCard accent="cream" className="space-y-4 lg:col-span-3">
+              <Badge variant="cream">No Featured Projects</Badge>
+              <h3 className="font-display text-4xl uppercase leading-none text-ink">
+                Publish and feature a project to highlight it on the homepage.
+              </h3>
+              <p className="text-sm leading-7 text-ink/76">
+                The featured rail updates directly from the live projects archive.
+              </p>
+            </EditorialCard>
+          )}
         </SectionShell>
 
         <SectionShell
@@ -274,40 +325,75 @@ export default function Home() {
           description="Writing focuses on portfolio strategy, premium UI choices, and product communication."
           contentClassName="grid gap-6 lg:grid-cols-2"
         >
-          {featuredPosts.map((post) => (
-            <BlogCard key={post.slug} post={post} />
-          ))}
+          {featuredPosts.length > 0 ? (
+            featuredPosts.map((post) => (
+              <BlogCard key={post.slug} post={post} />
+            ))
+          ) : (
+            <EditorialCard accent="cream" className="space-y-4 lg:col-span-2">
+              <Badge variant="cream">No Published Stories</Badge>
+              <h3 className="font-display text-4xl uppercase leading-none text-ink">
+                The writing shelf is waiting for its first published article.
+              </h3>
+              <p className="text-sm leading-7 text-ink/76">
+                Publish a story from the admin blog workspace to feature it here on the
+                public homepage.
+              </p>
+            </EditorialCard>
+          )}
         </SectionShell>
 
         <SectionShell
           label="Proof"
           title="Testimonials shaped like sharp recommendations."
           description="These quotes show how social proof can sit inside the same visual language without becoming an afterthought."
-          contentClassName="grid gap-6 lg:grid-cols-2"
+          contentClassName="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]"
         >
-          {testimonials.map((testimonial, index) => (
-            <EditorialCard
-              key={testimonial.name}
-              accent={index % 2 === 0 ? "red" : "blue"}
-              className="space-y-5"
-            >
-              <p className="font-display text-4xl uppercase leading-none text-ink">
-                “
+          <TestimonialCarousel testimonials={testimonials} />
+          <EditorialCard accent="blue" className="flex h-full flex-col gap-5">
+            <div className="space-y-3">
+              <Badge variant="blue">Leave a Testimonial</Badge>
+              <h3 className="font-display text-4xl uppercase leading-none text-ink">
+                Use the dedicated page for a cleaner, more focused submission flow.
+              </h3>
+              <p className="text-sm leading-7 text-ink/76">
+                The homepage now keeps proof browsing lightweight, while the full
+                testimonial form lives on its own route with more context and less
+                distraction.
               </p>
-              <p className="text-base leading-8 text-ink/80 sm:text-lg">
-                {testimonial.quote}
-              </p>
-              <div className="border-t-[3px] border-dashed border-ink/25 pt-4">
-                <p className="font-display text-2xl uppercase leading-none text-ink">
-                  {testimonial.name}
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-[22px] border-[3px] border-ink bg-white/75 px-4 py-4 shadow-[5px_5px_0_var(--ink)]">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-ink/55">
+                  Better For
                 </p>
-                <p className="mt-2 text-sm font-semibold uppercase tracking-[0.2em] text-ink/65">
-                  {testimonial.role}
+                <p className="mt-3 font-display text-2xl uppercase leading-none text-ink">
+                  Shared links and calmer form filling
                 </p>
               </div>
-            </EditorialCard>
-          ))}
+              <div className="rounded-[22px] border-[3px] border-ink bg-white/75 px-4 py-4 shadow-[5px_5px_0_var(--ink)]">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-ink/55">
+                  Submission Path
+                </p>
+                <p className="mt-3 font-display text-2xl uppercase leading-none text-ink">
+                  Public page to moderation queue
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-auto flex flex-wrap gap-4">
+              <Link href="/testimonials" className="button-link button-link-blue">
+                Open Testimonial Form
+              </Link>
+              <Link href="/projects" className="button-link button-link-muted">
+                Browse Work First
+              </Link>
+            </div>
+          </EditorialCard>
         </SectionShell>
+
+        <ContactSection initialProfile={profile} />
 
         <section className="surface-panel surface-panel-red paper-grid overflow-hidden">
           <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">

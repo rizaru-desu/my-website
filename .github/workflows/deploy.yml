@@ -9,10 +9,12 @@ name: Deploy Production
 # DEPLOY_HOST (defaults to remote.rizaru-desu.my.id)
 # DEPLOY_PORT
 # DEPLOY_KNOWN_HOSTS
+# DEPLOY_ENV_PRODUCTION
 # CF_ACCESS_CLIENT_ID
 # CF_ACCESS_CLIENT_SECRET
 #
 # Optional repository variable:
+# DEPLOY_ENV_PRODUCTION
 # DEPLOY_USE_CLOUDFLARE_TUNNEL
 # CLOUDFLARED_VERSION
 # KEEP_RELEASES
@@ -215,6 +217,7 @@ jobs:
 
       - name: Upload release artifact
         env:
+          DEPLOY_ENV_PRODUCTION: ${{ secrets.DEPLOY_ENV_PRODUCTION || vars.DEPLOY_ENV_PRODUCTION || '' }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
         run: |
@@ -227,6 +230,16 @@ jobs:
 
             export CF_ACCESS_CLIENT_ID
             export CF_ACCESS_CLIENT_SECRET
+          fi
+
+          if [ -n "${DEPLOY_ENV_PRODUCTION:-}" ]; then
+            tmp_env_file="$(mktemp)"
+            trap 'rm -f "$tmp_env_file"' EXIT
+            printf '%s' "$DEPLOY_ENV_PRODUCTION" > "$tmp_env_file"
+
+            ssh deploy-target "mkdir -p '$DEPLOY_PATH/shared' '$DEPLOY_PATH/tmp'"
+            scp "$tmp_env_file" "deploy-target:$DEPLOY_PATH/tmp/.env.production"
+            ssh deploy-target "install -m 600 '$DEPLOY_PATH/tmp/.env.production' '$DEPLOY_PATH/shared/.env.production' && rm -f '$DEPLOY_PATH/tmp/.env.production'"
           fi
 
           ssh deploy-target "mkdir -p '$DEPLOY_PATH/releases' '$DEPLOY_PATH/shared' '$DEPLOY_PATH/tmp'"

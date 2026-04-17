@@ -5,6 +5,12 @@ import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import {
+  deleteRedisKeys,
+  expireRedisKey,
+  hasRedisConfig,
+  incrementRedisKey,
+} from "@/lib/redis";
+import {
   VISITOR_ANALYTICS_DAYS,
   VISITOR_ANALYTICS_TIMEZONE,
   VISITOR_COOKIE_NAME,
@@ -75,19 +81,8 @@ function getAnalyticsHashSalt() {
   return process.env.ANALYTICS_HASH_SALT?.trim() ?? "";
 }
 
-function getUpstashConfig() {
-  const url = process.env.UPSTASH_REDIS_REST_URL?.trim() ?? "";
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim() ?? "";
-
-  return {
-    token,
-    url,
-  };
-}
-
 function hasTrackingConfig() {
-  const { token, url } = getUpstashConfig();
-  return Boolean(url && token && getAnalyticsHashSalt());
+  return Boolean(hasRedisConfig() && getAnalyticsHashSalt());
 }
 
 function hashAnalyticsValue(value: string) {
@@ -280,50 +275,18 @@ function isMissingVisitorLogTableError(error: unknown) {
   );
 }
 
-async function runUpstashCommand(command: string[]) {
-  const { token, url } = getUpstashConfig();
-
-  if (!token || !url) {
-    throw new Error("Upstash Redis is not configured for visitor analytics.");
-  }
-
-  const commandPath = command.map((segment) => encodeURIComponent(segment)).join("/");
-  const response = await fetch(`${url}/${commandPath}`, {
-    cache: "no-store",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    method: "POST",
-  });
-
-  const payload = (await response.json()) as { error?: string; result?: unknown };
-
-  if (!response.ok || payload.error) {
-    throw new Error(payload.error || "The Redis analytics command failed.");
-  }
-
-  return payload.result;
-}
-
 async function incrementKeyWithExpiry(key: string, ttlSeconds: number) {
-  const result = await runUpstashCommand(["incr", key]);
-  const count = Number(result ?? 0);
+  const count = Number(await incrementRedisKey(key));
 
   if (count === 1) {
-    await runUpstashCommand(["expire", key, String(ttlSeconds)]);
+    await expireRedisKey(key, ttlSeconds);
   }
 
   return count;
 }
 
 async function deleteTrackingKeys(keys: string[]) {
-  const uniqueKeys = Array.from(new Set(keys.filter(Boolean)));
-
-  if (uniqueKeys.length === 0) {
-    return;
-  }
-
-  await runUpstashCommand(["del", ...uniqueKeys]);
+  await deleteRedisKeys(keys);
 }
 
 function buildDebounceKey(visitorId: string, path: string) {

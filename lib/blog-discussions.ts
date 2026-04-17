@@ -20,6 +20,7 @@ import {
   isPrismaConnectionError,
 } from "@/lib/prisma-errors";
 import { prisma } from "@/lib/prisma";
+import { expireRedisKey, hasRedisConfig, incrementRedisKey } from "@/lib/redis";
 
 const BOT_USER_AGENT_PATTERN =
   /googlebot|bingbot|slurp|duckduckbot|baiduspider|yandex|wget|curl|python|scrapy|headlesschrome|rendertron|facebookexternalhit|linkedinbot|whatsapp/i;
@@ -154,53 +155,8 @@ function isBotLikeRequest(requestHeaders: Headers) {
   return BOT_USER_AGENT_PATTERN.test(getUserAgent(requestHeaders));
 }
 
-function getUpstashConfig() {
-  return {
-    token: process.env.UPSTASH_REDIS_REST_TOKEN?.trim() ?? "",
-    url: process.env.UPSTASH_REDIS_REST_URL?.trim() ?? "",
-  };
-}
-
-function hasUpstashConfig() {
-  const { token, url } = getUpstashConfig();
-  return Boolean(url && token);
-}
-
-async function runUpstashCommand(command: string[]) {
-  const { token, url } = getUpstashConfig();
-
-  if (!url || !token) {
-    throw new Error("Upstash Redis is not configured.");
-  }
-
-  const response = await fetch(`${url}/pipeline`, {
-    body: JSON.stringify([command]),
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    method: "POST",
-  });
-
-  if (!response.ok) {
-    throw new Error("The discussion rate-limit store could not be reached.");
-  }
-
-  const payload = (await response.json()) as Array<{
-    error?: string;
-    result?: number | string | null;
-  }>;
-  const result = payload[0];
-
-  if (result?.error) {
-    throw new Error(result.error);
-  }
-
-  return result?.result;
-}
-
 async function enforceSubmissionRateLimit(requestHeaders: Headers) {
-  if (!hasUpstashConfig()) {
+  if (!hasRedisConfig()) {
     return null;
   }
 
@@ -209,14 +165,10 @@ async function enforceSubmissionRateLimit(requestHeaders: Headers) {
   const cooldownKey = `blog-comment:cooldown:${ipHash}:${cooldownBucket}`;
   const hourKey = `blog-comment:hour:${ipHash}`;
 
-  const cooldownCount = Number(await runUpstashCommand(["incr", cooldownKey]) ?? 0);
+  const cooldownCount = Number(await incrementRedisKey(cooldownKey));
 
   if (cooldownCount === 1) {
-    await runUpstashCommand([
-      "expire",
-      cooldownKey,
-      String(COMMENT_COOLDOWN_WINDOW_SECONDS + 1),
-    ]);
+    await expireRedisKey(cooldownKey, COMMENT_COOLDOWN_WINDOW_SECONDS + 1);
   }
 
   if (cooldownCount > COMMENT_COOLDOWN_MAX_SUBMISSIONS) {
@@ -226,14 +178,10 @@ async function enforceSubmissionRateLimit(requestHeaders: Headers) {
     } satisfies BlogCommentActionResult;
   }
 
-  const hourlyCount = Number(await runUpstashCommand(["incr", hourKey]) ?? 0);
+  const hourlyCount = Number(await incrementRedisKey(hourKey));
 
   if (hourlyCount === 1) {
-    await runUpstashCommand([
-      "expire",
-      hourKey,
-      String(COMMENT_RATE_LIMIT_WINDOW_SECONDS),
-    ]);
+    await expireRedisKey(hourKey, COMMENT_RATE_LIMIT_WINDOW_SECONDS);
   }
 
   if (hourlyCount > COMMENT_RATE_LIMIT_MAX_SUBMISSIONS) {

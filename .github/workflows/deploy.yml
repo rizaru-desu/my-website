@@ -124,13 +124,63 @@ jobs:
           touch ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
+          HOST_KEY_ALIAS="deploy-target"
+          KNOWN_HOST_ALIASES="${HOST_KEY_ALIAS},${DEPLOY_HOST}"
+          if [ "${DEPLOY_PORT:-22}" != "22" ]; then
+            KNOWN_HOST_ALIASES="${KNOWN_HOST_ALIASES},[${DEPLOY_HOST}]:${DEPLOY_PORT:-22}"
+          fi
+
+          write_known_hosts() {
+            while IFS= read -r raw_line; do
+              line="${raw_line%$'\r'}"
+
+              if [ -z "$line" ]; then
+                continue
+              fi
+
+              if [ "${line#\#}" != "$line" ]; then
+                printf '%s\n' "$line" >> ~/.ssh/known_hosts
+                continue
+              fi
+
+              case "$line" in
+                ssh-*)
+                  printf '%s %s\n' "$KNOWN_HOST_ALIASES" "$line" >> ~/.ssh/known_hosts
+                  ;;
+                *)
+                  key_payload="${line#* }"
+                  if [ "$key_payload" = "$line" ]; then
+                    echo "DEPLOY_KNOWN_HOSTS contains an invalid host key entry." >&2
+                    exit 1
+                  fi
+
+                  printf '%s %s\n' "$KNOWN_HOST_ALIASES" "$key_payload" >> ~/.ssh/known_hosts
+                  ;;
+              esac
+            done <<< "$1"
+          }
+
           if [ -n "${DEPLOY_KNOWN_HOSTS:-}" ]; then
-            printf '%s\n' "$DEPLOY_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+            write_known_hosts "$DEPLOY_KNOWN_HOSTS"
           elif [ "${DEPLOY_USE_CLOUDFLARE_TUNNEL:-false}" = "true" ]; then
             echo "DEPLOY_KNOWN_HOSTS secret is required when DEPLOY_USE_CLOUDFLARE_TUNNEL=true" >&2
             exit 1
           else
-            ssh-keyscan -p "${DEPLOY_PORT:-22}" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+            SCANNED_HOST_KEYS="$(
+              ssh-keyscan -p "${DEPLOY_PORT:-22}" -t rsa,ecdsa,ed25519 "$DEPLOY_HOST" 2>/dev/null
+            )"
+
+            if [ -z "$SCANNED_HOST_KEYS" ]; then
+              echo "Could not retrieve SSH host keys from ${DEPLOY_HOST}:${DEPLOY_PORT:-22}." >&2
+              exit 1
+            fi
+
+            write_known_hosts "$SCANNED_HOST_KEYS"
+          fi
+
+          if ! ssh-keygen -F "$HOST_KEY_ALIAS" -f ~/.ssh/known_hosts >/dev/null; then
+            echo "No SSH host keys were registered for ${HOST_KEY_ALIAS}." >&2
+            exit 1
           fi
 
           cat <<EOF > ~/.ssh/config
@@ -140,20 +190,19 @@ jobs:
             User ${DEPLOY_USER}
             IdentityFile ~/.ssh/id_ed25519
             IdentitiesOnly yes
+            BatchMode yes
             CheckHostIP no
             StrictHostKeyChecking yes
             UserKnownHostsFile ~/.ssh/known_hosts
-            ProxyCommand $HOME/.local/bin/cloudflared access ssh --hostname %h
+            HostKeyAlias ${HOST_KEY_ALIAS}
+            ServerAliveInterval 30
+            ServerAliveCountMax 3
+            LogLevel ERROR
           EOF
 
           if [ "${DEPLOY_USE_CLOUDFLARE_TUNNEL:-false}" = "true" ]; then
             {
               echo "  ProxyCommand $HOME/.local/bin/cloudflared access ssh --hostname %h"
-              echo "  HostKeyAlias ${DEPLOY_HOST}"
-            } >> ~/.ssh/config
-          else
-            {
-              echo "  HostKeyAlias ${DEPLOY_HOST}"
             } >> ~/.ssh/config
           fi
 

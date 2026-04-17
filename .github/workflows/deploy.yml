@@ -140,12 +140,10 @@ jobs:
             User ${DEPLOY_USER}
             IdentityFile ~/.ssh/id_ed25519
             IdentitiesOnly yes
-            BatchMode yes
+            CheckHostIP no
             StrictHostKeyChecking yes
             UserKnownHostsFile ~/.ssh/known_hosts
-            ServerAliveInterval 30
-            ServerAliveCountMax 3
-            LogLevel ERROR
+            ProxyCommand $HOME/.local/bin/cloudflared access ssh --hostname %h
           EOF
 
           if [ "${DEPLOY_USE_CLOUDFLARE_TUNNEL:-false}" = "true" ]; then

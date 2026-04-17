@@ -7,6 +7,7 @@ import {
   getAdminProfileContext,
   updateAdminProfileContent,
 } from "@/lib/profile";
+import type { ProfileStat } from "@/lib/profile.shared";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,7 @@ export async function PATCH(request: Request) {
       availability?: string;
       about?: string;
       email?: string;
+      focus?: string[];
       fullName?: string;
       headline?: string;
       location?: string;
@@ -43,12 +45,15 @@ export async function PATCH(request: Request) {
       profilePhotoUrl?: string | null;
       shortIntro?: string;
       socialLinks?: Array<{ href?: string; label?: string }>;
+      stats?: Array<Partial<ProfileStat>>;
     };
 
     const result = await updateAdminProfileContent({
       availability: payload.availability ?? "",
       about: payload.about ?? "",
       email: payload.email ?? "",
+      focus:
+        payload.focus?.map((item) => (typeof item === "string" ? item : "")).filter(Boolean) ?? [],
       fullName: payload.fullName ?? "",
       headline: payload.headline ?? "",
       location: payload.location ?? "",
@@ -57,6 +62,12 @@ export async function PATCH(request: Request) {
       profilePhotoUrl:
         typeof payload.profilePhotoUrl === "string" ? payload.profilePhotoUrl : null,
       shortIntro: payload.shortIntro ?? "",
+      stats:
+        payload.stats?.map((stat) => ({
+          detail: stat.detail ?? "",
+          label: stat.label ?? "",
+          value: stat.value ?? "",
+        })) ?? [],
       socialLinks:
         payload.socialLinks?.map((link) => ({
           href: link.href ?? "",

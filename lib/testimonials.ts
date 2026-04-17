@@ -8,6 +8,7 @@ import {
   isPrismaConnectionError,
 } from "@/lib/prisma-errors";
 import { prisma } from "@/lib/prisma";
+import { expireRedisKey, hasRedisConfig, incrementRedisKey } from "@/lib/redis";
 import {
   formatPublicTestimonialRole,
   getNextTestimonialState,
@@ -128,21 +129,6 @@ function toPublicRecord(
   };
 }
 
-function getUpstashConfig() {
-  const url = process.env.UPSTASH_REDIS_REST_URL?.trim() ?? "";
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim() ?? "";
-
-  return {
-    token,
-    url,
-  };
-}
-
-function hasUpstashConfig() {
-  const { token, url } = getUpstashConfig();
-  return Boolean(url && token);
-}
-
 function resolveClientIp(requestHeaders: Headers) {
   const forwardedFor = requestHeaders.get("x-forwarded-for");
 
@@ -158,56 +144,18 @@ function resolveClientIp(requestHeaders: Headers) {
   );
 }
 
-async function runUpstashCommand(command: string[]) {
-  const { token, url } = getUpstashConfig();
-
-  if (!url || !token) {
-    throw new Error("Upstash Redis is not configured.");
-  }
-
-  const response = await fetch(`${url}/pipeline`, {
-    body: JSON.stringify([command]),
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    method: "POST",
-  });
-
-  if (!response.ok) {
-    throw new Error("The testimonial rate-limit store could not be reached.");
-  }
-
-  const payload = (await response.json()) as Array<{
-    error?: string;
-    result?: number | string | null;
-  }>;
-
-  const result = payload[0];
-
-  if (result?.error) {
-    throw new Error(result.error);
-  }
-
-  return result?.result;
-}
-
 async function enforceSubmissionRateLimit(requestHeaders: Headers) {
-  if (!hasUpstashConfig()) {
+  if (!hasRedisConfig()) {
     return null;
   }
 
   const ip = resolveClientIp(requestHeaders);
   const key = `testimonial:submit:${ip}`;
 
-  const currentCount = Number(await runUpstashCommand(["incr", key]) ?? 0);
+  const currentCount = Number(await incrementRedisKey(key));
 
   if (currentCount === 1) {
-    await runUpstashCommand([
-      "expire",
-      key,
-      String(TESTIMONIAL_RATE_LIMIT_WINDOW_SECONDS),
-    ]);
+    await expireRedisKey(key, TESTIMONIAL_RATE_LIMIT_WINDOW_SECONDS);
   }
 
   if (currentCount > TESTIMONIAL_RATE_LIMIT_MAX_SUBMISSIONS) {

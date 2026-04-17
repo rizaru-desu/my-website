@@ -20,6 +20,7 @@ import {
   BOT_USER_AGENT_PATTERN,
   VISITOR_ANALYTICS_TIMEZONE,
 } from "@/lib/visitor-analytics";
+import { expireRedisKey, hasRedisConfig, incrementRedisKey } from "@/lib/redis";
 import { resumeAssetSchema } from "@/lib/validations/resume-asset.schema";
 
 export async function getPublicExperiences() {
@@ -138,19 +139,8 @@ function getAnalyticsHashSalt() {
   return process.env.ANALYTICS_HASH_SALT?.trim() ?? "";
 }
 
-function getUpstashConfig() {
-  const url = process.env.UPSTASH_REDIS_REST_URL?.trim() ?? "";
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim() ?? "";
-
-  return {
-    token,
-    url,
-  };
-}
-
 function hasResumeDedupConfig() {
-  const { token, url } = getUpstashConfig();
-  return Boolean(token && url && getAnalyticsHashSalt());
+  return Boolean(hasRedisConfig() && getAnalyticsHashSalt());
 }
 
 function toNumber(value: number | bigint | string | null | undefined) {
@@ -286,40 +276,6 @@ function resolveClientIp(requestHeaders: Headers) {
     requestHeaders.get("fly-client-ip") ||
     "unknown"
   );
-}
-
-async function runUpstashCommand(command: string[]) {
-  const { token, url } = getUpstashConfig();
-
-  if (!url || !token) {
-    throw new Error("Upstash Redis is not configured.");
-  }
-
-  const response = await fetch(`${url}/pipeline`, {
-    body: JSON.stringify([command]),
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    method: "POST",
-  });
-
-  if (!response.ok) {
-    throw new Error("The resume download dedup store could not be reached.");
-  }
-
-  const payload = (await response.json()) as Array<{
-    error?: string;
-    result?: number | string | null;
-  }>;
-
-  const result = payload[0];
-
-  if (result?.error) {
-    throw new Error(result.error);
-  }
-
-  return result?.result;
 }
 
 function getResumeDownloadUrlFromEnv() {
@@ -482,14 +438,10 @@ export async function trackResumeDownloadRequest(
   if (shouldDedup) {
     try {
       const key = `resume:download:${ipHash}:${getJakartaDayKey(new Date())}`;
-      const currentCount = Number(await runUpstashCommand(["incr", key]) ?? 0);
+      const currentCount = Number(await incrementRedisKey(key));
 
       if (currentCount === 1) {
-        await runUpstashCommand([
-          "expire",
-          key,
-          String(RESUME_DOWNLOAD_DEDUP_TTL_SECONDS),
-        ]);
+        await expireRedisKey(key, RESUME_DOWNLOAD_DEDUP_TTL_SECONDS);
       }
 
       shouldLog = currentCount === 1;

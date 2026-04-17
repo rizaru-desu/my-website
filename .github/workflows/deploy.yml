@@ -60,6 +60,8 @@ jobs:
 
       - name: Generate Prisma Client
         run: pnpx prisma generate
+        env:
+          DATABASE_URL: "postgresql://user:password@localhost:5432/db"
 
       - name: Compute release version
         id: release_meta

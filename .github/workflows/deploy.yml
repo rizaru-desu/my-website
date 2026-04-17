@@ -101,7 +101,7 @@ jobs:
           # Sekarang sistem sudah kenal 'node' dan 'pm2' secara otomatis
           cd /srv/www/portofolio
           mkdir -p logs
-          pnpm rebuild argon2
+          # pnpm rebuild argon2
 
           if pm2 describe portofolio >/dev/null 2>&1; then
             pm2 reload ecosystem.config.js --update-env --env production

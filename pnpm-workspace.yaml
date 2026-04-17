@@ -1,5 +1,7 @@
 onlyBuiltDependencies:
   - '@prisma/engines'
+  - argon2
+  - es5-ext
   - prisma
   - sharp
   - unrs-resolver

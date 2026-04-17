@@ -428,6 +428,10 @@ export async function getPublicBlogPosts(): Promise<PublicBlogSummary[]> {
 
     return posts.map((post) => toPublicBlogSummary(toPublicBlogDetail(post)));
   } catch (error) {
+    if (isMissingBlogPostTableError(error) || isPrismaConnectionError(error)) {
+      return [];
+    }
+
     throw new BlogStorageError(getBlogStorageMessage(error));
   }
 }
@@ -454,6 +458,10 @@ export async function getPublicBlogPostBySlug(slug: string): Promise<PublicBlogD
 
     return post ? toPublicBlogDetail(post) : null;
   } catch (error) {
+    if (isMissingBlogPostTableError(error) || isPrismaConnectionError(error)) {
+      return null;
+    }
+
     throw new BlogStorageError(getBlogStorageMessage(error));
   }
 }

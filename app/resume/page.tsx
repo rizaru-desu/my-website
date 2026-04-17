@@ -7,7 +7,7 @@ import { PageHero } from "@/components/ui/page-hero";
 import { SectionShell } from "@/components/ui/section-shell";
 import { getPublicProfileContent } from "@/lib/profile";
 import { getPublicSkills } from "@/lib/skills";
-import { education, experiences } from "@/lib/mock-content";
+import { getPublicExperiences, getPublicEducation } from "@/lib/resume";
 
 export default async function ResumePage({
   searchParams,
@@ -18,9 +18,11 @@ export default async function ResumePage({
 }) {
   const { download } = await searchParams;
   const showDownloadUnavailable = download === "unavailable";
-  const [profile, skills] = await Promise.all([
+  const [profile, skills, experiences, education] = await Promise.all([
     getPublicProfileContent(),
     getPublicSkills(),
+    getPublicExperiences(),
+    getPublicEducation(),
   ]);
   const groupedSkills = Array.from(
     skills.reduce((map, skill) => {

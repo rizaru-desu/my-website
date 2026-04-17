@@ -1,7 +1,7 @@
 # Portfolio Platform
 
 > A bold public portfolio paired with an editorial-style admin workspace.  
-> This repo is already strong in authentication, protected admin UX, and recruiter-facing presentation, but much of the CMS data layer outside auth, visitor analytics, and testimonials is still mock or local-only.
+> This repo is already strong in authentication, protected admin UX, and recruiter-facing presentation. Several CMS domains now use real persisted data, but some content areas still rely on fallback or mock-backed flows.
 
 ## How to Read This Repo Today
 
@@ -11,7 +11,7 @@ The honest read:
 
 - The product direction, design language, public pages, and admin surfaces are already substantial.
 - Authentication and account security are implemented with real Better Auth flows.
-- Many content-management screens currently use `mock-content`, seeded defaults, or local state instead of persisted Prisma content models.
+- Some content-management screens already persist to Prisma, while others still use `mock-content`, seeded defaults, or fallback paths.
 - [`docs/task.md`](docs/task.md) still exists, but it is **not fully in sync** with the current codebase. Treat this README as the current status snapshot.
 
 ## Stack Snapshot
@@ -74,19 +74,20 @@ The honest read:
 - Account management, profile editing, projects, skills, blog, testimonials, messages, and resume workspace pages all exist as usable admin surfaces.
 - The admin messages inbox now uses real Prisma-backed listing, status updates, and reply actions in [`app/admin/messages`](app/admin/messages) and [`app/api/admin/messages`](app/api/admin/messages).
 - Testimonial moderation now uses a real Prisma-backed review queue with filtering, pagination, detail dialogs, and moderation actions in [`app/admin/testimonials`](app/admin/testimonials).
+- Projects now use a real Prisma-backed admin CRUD flow with TanStack Query, protected REST routes, and public revalidation in [`app/admin/projects`](app/admin/projects), [`app/api/admin/projects`](app/api/admin/projects), and [`lib/projects.ts`](lib/projects.ts).
 
 **Partial / Mock**
 
-- Most non-user CMS sections outside testimonials are still driven by `mock-content`, default-value files, or local-only state instead of persisted records.
+- Several non-user CMS sections still rely on `mock-content`, seeded defaults, or fallback records instead of fully persisted content models.
 - Dashboard analytics now use live visitor tracking for visitors, messages, and resume downloads, while deeper aggregation still remains pending in other areas.
 - Resume upload, profile photo upload, and blog/project media handling are UI simulations rather than connected cloud storage flows.
 - Message replies depend on SMTP env configuration, so reply composition is live but outbound delivery still depends on mailer setup.
-- Some save flows are intentionally local/editorial rather than true CRUD persistence.
+- Profile, skills, blog, and resume content still include fallback-oriented paths or incomplete persistence compared with the now-live project flow.
 
 **Not Yet**
 
-- Fully persisted CRUD for profile, projects, skills, blog posts, education, experience, certificates, and resume assets.
-- Real publishing and moderation workflows backed by database state across blog, projects, and the rest of the admin area.
+- Fully persisted CRUD for profile, skills, education, experience, certificates, and complete resume asset/content management.
+- Real publishing and moderation workflows backed by database state across every remaining CMS area.
 - Recharts-based analytics implementation promised in older planning docs.
 
 ### 3. Public Portfolio
@@ -98,6 +99,7 @@ The honest read:
 - Blog archive and blog detail pages are implemented in [`app/blog/page.tsx`](app/blog/page.tsx) and [`app/blog/[slug]/page.tsx`](app/blog/[slug]/page.tsx).
 - Reading progress for blog articles is implemented in [`components/reading-progress.tsx`](components/reading-progress.tsx).
 - Public filtering UI exists for projects and blog through [`components/project-filter.tsx`](components/project-filter.tsx) and [`components/blog-filter.tsx`](components/blog-filter.tsx).
+- Public project archive, project detail pages, and homepage featured project rail now use real Prisma-backed project data through [`lib/projects.ts`](lib/projects.ts) and [`app/api/public/projects`](app/api/public/projects).
 - The public contact form persists inbound messages through [`app/actions/contact.action.ts`](app/actions/contact.action.ts) into the admin inbox backed by [`prisma/schema.prisma`](prisma/schema.prisma).
 - The public resume route now uses a real CV download proxy at [`app/api/cv/download/route.ts`](app/api/cv/download/route.ts), with redirect fallback when the asset URL is not configured yet.
 - A dedicated public testimonial submission page exists at [`app/testimonials/page.tsx`](app/testimonials/page.tsx), and homepage proof cards now read approved featured testimonials through [`lib/testimonials.ts`](lib/testimonials.ts).
@@ -105,9 +107,9 @@ The honest read:
 
 **Partial / Mock**
 
-- Public portfolio content currently comes from [`lib/mock-content.ts`](lib/mock-content.ts), not from content models in Prisma.
+- Public profile, blog fallback paths, and resume content still depend partly on [`lib/mock-content.ts`](lib/mock-content.ts) or fallback data when storage is unavailable.
 - The homepage testimonial proof deck falls back to mock content if testimonial storage is unavailable, so local setups without the testimonial table still render.
-- The public-facing content architecture already mirrors the intended CMS, but not yet the intended persistence layer.
+- The public-facing content architecture mostly mirrors the intended CMS, but only some domains are fully backed by persisted content models today.
 
 **Not Yet**
 
@@ -124,17 +126,18 @@ The honest read:
 - Messages now have a real Prisma model, public submission action, admin inbox handlers, and reply/status flows through [`prisma/schema.prisma`](prisma/schema.prisma), [`app/actions/contact.action.ts`](app/actions/contact.action.ts), and [`app/api/admin/messages`](app/api/admin/messages).
 - Resume downloads now have a real tracking model, route handler, and dashboard query layer through [`prisma/schema.prisma`](prisma/schema.prisma), [`app/api/cv/download/route.ts`](app/api/cv/download/route.ts), and [`lib/resume.ts`](lib/resume.ts).
 - Testimonials now have a real Prisma model, seed data, public submission flow, and admin moderation handlers through [`prisma/schema.prisma`](prisma/schema.prisma), [`prisma/seed.mjs`](prisma/seed.mjs), and [`app/api/admin/testimonials`](app/api/admin/testimonials).
+- Projects now have a real Prisma model, seed data, admin CRUD handlers, public query layer, and homepage/archive/detail integration through [`prisma/schema.prisma`](prisma/schema.prisma), [`prisma/seed.mjs`](prisma/seed.mjs), [`app/api/admin/projects`](app/api/admin/projects), [`app/api/public/projects`](app/api/public/projects), and [`lib/projects.ts`](lib/projects.ts).
 
 **Partial / Mock**
 
-- The codebase already has schemas, editor defaults, and structured UI for many CMS domains, but most of those domains do not yet persist to Prisma.
-- Some admin pages are already shaped like production features, but they are still acting as local prototypes with realistic data.
+- The codebase already has schemas, editor defaults, and structured UI for many CMS domains, but several of those domains still do not persist fully to Prisma.
+- Some admin pages are already shaped like production features, but a few still act as fallback-friendly prototypes with realistic data.
 - Visitor analytics use Upstash-backed dedup and Prisma-backed storage, but they currently cover only public page visits, not message or download events.
 
 **Not Yet**
 
-- Prisma content models for profile, projects, skills, education, experience, certificates, and blog posts.
-- Full server actions or route handlers for CMS CRUD across those content models.
+- Prisma content models and complete CRUD coverage for profile, skills, education, experience, certificates, and fully persisted blog/profile/resume domains.
+- Full server actions or route handlers for CMS CRUD across every remaining content model.
 - Broader Redis-backed caching, dedup, or rate limiting beyond visitor analytics and testimonial submissions.
 - BullMQ or background job infrastructure.
 - Broader analytics beyond visitors, inbox, and resume downloads.
@@ -163,7 +166,7 @@ The honest read:
 If this repo continues toward a production CMS, the highest-value next steps are:
 
 1. Add Prisma content models beyond auth, analytics, and testimonials.
-2. Replace mock/local admin save flows with real persisted CRUD for the remaining CMS sections.
+2. Replace the remaining mock/fallback admin save flows with real persisted CRUD for profile, skills, blog, and resume sections.
 3. Add real email delivery and file storage.
 4. Extend live analytics beyond visitors, inbox, and resume downloads.
 5. Add SEO files and production monitoring.

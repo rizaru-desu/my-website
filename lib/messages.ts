@@ -40,6 +40,8 @@ type MessageAnalyticsDailyRow = {
   messages: number | bigint | string;
 };
 
+export type DashboardMessageAnalyticsResult = DashboardMessageAnalytics;
+
 type DashboardMessageAnalytics = {
   breakdown: Array<{
     accent: "cream" | "blue" | "red";

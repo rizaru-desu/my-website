@@ -709,7 +709,7 @@ export function ProjectForm({
                   value={formatMetricList(field.state.value)}
                   onBlur={field.handleBlur}
                   onChange={(event) => field.handleChange(parseMetricList(event.target.value))}
-                  placeholder={"Public sections: 6\nMock entities: 24\nHero scan time: <10 sec"}
+                  placeholder={"Public sections: 6\nDatabase entities: 24\nHero scan time: <10 sec"}
                   className="min-h-36"
                 />
                 <p className="text-sm leading-6 text-ink/60">

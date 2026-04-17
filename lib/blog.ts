@@ -7,7 +7,6 @@ import { ZodError } from "zod";
 import { blogSchema, type BlogFormValues } from "@/app/admin/blog/blog.schema";
 import { auth } from "@/lib/auth";
 import { getBlogCommentCountsByPostId } from "@/lib/blog-discussions";
-import { blogPosts as fallbackBlogPosts } from "@/lib/mock-content";
 import {
   canManageBlogPost,
   formatBlogPublishDate,
@@ -54,9 +53,6 @@ type AdminBlogContext = {
   permissions: BlogPermissionSet;
 };
 
-const mockStatuses = ["published", "published", "draft"] as const;
-const mockPublishDates = ["2026-03-12", "2026-02-18", "2026-01-24"] as const;
-
 const blogPostModel = (prisma as typeof prisma & {
   blogPost: {
     create: (args: unknown) => Promise<StoredBlogPost>;
@@ -97,77 +93,6 @@ function normalizeDate(value: Date | string | null | undefined) {
   }
 
   return date.toISOString();
-}
-
-function buildMockBlogContent(index: number) {
-  const post = fallbackBlogPosts[index];
-
-  return [
-    post.summary,
-    post.quote,
-    post.callout,
-    ...post.sections.flatMap((section) => [
-      `## ${section.heading}`,
-      ...section.paragraphs,
-    ]),
-  ].join("\n\n");
-}
-
-function getFallbackAdminBlogRecords(): AdminBlogRecord[] {
-  return fallbackBlogPosts.map((post, index) => ({
-    authorName: "Rizal Achmad",
-    authorUserId: `mock-author-${index + 1}`,
-    commentCount: 0,
-    createdAt: new Date(mockPublishDates[index] ?? "2026-01-01").toISOString(),
-    id: `post-${post.slug}`,
-    pendingCommentCount: 0,
-    source: "fallback",
-    updatedAt: new Date(mockPublishDates[index] ?? "2026-01-01").toISOString(),
-    values: {
-      authorName: "Rizal Achmad",
-      category: post.kicker,
-      content: buildMockBlogContent(index),
-      coverImagePlaceholder: `${post.title} cover frame`,
-      excerpt: post.summary,
-      featured: post.featured,
-      publishDate: mockPublishDates[index] ?? "",
-      readingTime: post.readingTime,
-      seoDescription: post.summary,
-      seoTitle: post.title,
-      slug: post.slug,
-      status: mockStatuses[index] ?? "draft",
-      tags: post.tags,
-      title: post.title,
-    },
-  }));
-}
-
-function getFallbackPublicBlogPosts(): PublicBlogDetail[] {
-  return fallbackBlogPosts.flatMap((post, index) => {
-    if ((mockStatuses[index] ?? "draft") !== "published") {
-      return [];
-    }
-
-    const publishDate = mockPublishDates[index] ?? null;
-    const content = buildMockBlogContent(index);
-
-    return [{
-      authorName: "Rizal Achmad",
-      category: post.kicker,
-      content,
-      coverImagePlaceholder: `${post.title} cover frame`,
-      excerpt: post.summary,
-      featured: post.featured,
-      publishDate,
-      publishDateLabel: formatBlogPublishDate(publishDate),
-      readingTime: post.readingTime,
-      seoDescription: post.summary,
-      seoTitle: post.title,
-      slug: post.slug,
-      tags: post.tags,
-      title: post.title,
-    }];
-  });
 }
 
 function getBlogStorageMessage(error: unknown) {
@@ -481,10 +406,6 @@ export async function getAdminBlogs(): Promise<AdminBlogRecord[]> {
       };
     });
   } catch (error) {
-    if (isMissingBlogPostTableError(error) || isPrismaConnectionError(error)) {
-      return getFallbackAdminBlogRecords();
-    }
-
     throw new BlogStorageError(getBlogStorageMessage(error));
   }
 }
@@ -507,10 +428,6 @@ export async function getPublicBlogPosts(): Promise<PublicBlogSummary[]> {
 
     return posts.map((post) => toPublicBlogSummary(toPublicBlogDetail(post)));
   } catch (error) {
-    if (isMissingBlogPostTableError(error) || isPrismaConnectionError(error)) {
-      return getFallbackPublicBlogPosts().map((post) => toPublicBlogSummary(post));
-    }
-
     throw new BlogStorageError(getBlogStorageMessage(error));
   }
 }
@@ -537,10 +454,6 @@ export async function getPublicBlogPostBySlug(slug: string): Promise<PublicBlogD
 
     return post ? toPublicBlogDetail(post) : null;
   } catch (error) {
-    if (isMissingBlogPostTableError(error) || isPrismaConnectionError(error)) {
-      return getFallbackPublicBlogPosts().find((post) => post.slug === slug) ?? null;
-    }
-
     throw new BlogStorageError(getBlogStorageMessage(error));
   }
 }

@@ -4,13 +4,18 @@ import { redirect } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { EditorialCard } from "@/components/ui/editorial-card";
-import { AdminResumeAccessError, getAdminResumeContext } from "@/lib/resume";
+import { AdminResumeAccessError, getAdminResumeContext, getPublicExperiences, getPublicEducation, getPublicCertificates } from "@/lib/resume";
 
 import { ResumeCollectionsCms } from "./resume-collections-cms";
 import { ResumeUpload } from "./resume-upload";
 
 export default async function AdminResumePage() {
   const requestHeaders = await headers();
+  const [initialExperiences, initialEducations, initialCertificates] = await Promise.all([
+    getPublicExperiences(),
+    getPublicEducation(),
+    getPublicCertificates()
+  ]);
 
   try {
     await getAdminResumeContext(requestHeaders);
@@ -100,7 +105,11 @@ export default async function AdminResumePage() {
       </section>
 
       <ResumeUpload />
-      <ResumeCollectionsCms />
+      <ResumeCollectionsCms
+        initialExperiences={initialExperiences}
+        initialEducations={initialEducations}
+        initialCertificates={initialCertificates}
+      />
     </div>
   );
 }

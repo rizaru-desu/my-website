@@ -6,7 +6,7 @@ import { AdminChart } from "@/components/admin-chart";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card";
 import { SectionShell } from "@/components/ui/section-shell";
-import { getDashboardMessageAnalytics } from "@/lib/messages";
+import type { DashboardMessageAnalyticsResult } from "@/lib/messages";
 import { formatResumeUpdatedAt } from "@/lib/resume.shared";
 import { getAdminResumeAsset, getDashboardResumeDownloadAnalytics } from "@/lib/resume";
 import { getDashboardVisitorAnalytics } from "@/lib/visitor-analytics";
@@ -145,14 +145,15 @@ function MessageBreakdownCard({
 
 export async function DashboardAnalytics({
   canManageResume = false,
+  messageAnalytics,
 }: {
   canManageResume?: boolean;
+  messageAnalytics: DashboardMessageAnalyticsResult;
 }) {
   noStore();
 
-  const [visitorAnalytics, messageAnalytics, resumeAnalytics, resumeAsset] = await Promise.all([
+  const [visitorAnalytics, resumeAnalytics, resumeAsset] = await Promise.all([
     getDashboardVisitorAnalytics(),
-    getDashboardMessageAnalytics(),
     getDashboardResumeDownloadAnalytics(),
     getAdminResumeAsset(),
   ]);
@@ -271,7 +272,7 @@ export async function DashboardAnalytics({
           description="Quick operational read on the file powering the public CV route."
           summary={resumeSourceMeta.label}
           change={resumeSourceMeta.note}
-          accent={resumeSourceMeta.accent === "cream" ? "cream" : resumeSourceMeta.accent}
+          accent={resumeSourceMeta.accent}
         >
           <div className="space-y-4">
             <div className="rounded-[22px] border-[3px] border-ink bg-panel px-4 py-4 shadow-[5px_5px_0_var(--ink)]">
@@ -288,7 +289,7 @@ export async function DashboardAnalytics({
                   {resumeSourceMeta.label}
                 </Badge>
               </div>
-              <p className="mt-4 break-words text-sm leading-7 text-ink/76">
+              <p className="mt-4 wrap-break-word text-sm leading-7 text-ink/76">
                 {resumeAsset.downloadUrl ?? "No public CV URL is configured yet."}
               </p>
             </div>
@@ -298,7 +299,7 @@ export async function DashboardAnalytics({
                 <p className="text-sm font-semibold uppercase tracking-[0.18em] text-ink/58">
                   Host
                 </p>
-                <p className="mt-2 break-words font-display text-2xl uppercase leading-none text-ink">
+                <p className="mt-2 wrap-break-word font-display text-2xl uppercase leading-none text-ink">
                   {resumeHost}
                 </p>
               </div>
@@ -382,7 +383,7 @@ export async function DashboardAnalytics({
                       </p>
                       <p className="text-sm leading-6 text-ink/70">{page.path}</p>
                     </div>
-                    <Badge variant={index === 0 ? "red" : index === 1 ? "blue" : "cream"}>
+                    <Badge variant={index === 0 ? "red" : "blue"}>
                       {page.value}
                     </Badge>
                   </div>

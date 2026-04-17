@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { ZodError } from "zod";
 
-import { skillSeedRecords } from "@/app/admin/skills/skill.default-values";
 import { skillSchema, type SkillFormValues } from "@/app/admin/skills/skill.schema";
 import { auth } from "@/lib/auth";
 import {
@@ -80,10 +79,6 @@ function normalizeStoredSkill(skill: StoredSkill): SkillRecord | null {
   };
 }
 
-function getFallbackSkillRecords() {
-  return skillSeedRecords;
-}
-
 function getSkillStorageMessage(error: unknown) {
   if (isMissingSkillTableError(error)) {
     return "Skill storage is not ready yet. Start the database and run `npx prisma db push` first.";
@@ -151,10 +146,6 @@ export async function getAdminSkills(): Promise<SkillRecord[]> {
       .map((skill) => normalizeStoredSkill(skill))
       .filter((skill): skill is SkillRecord => Boolean(skill));
   } catch (error) {
-    if (isMissingSkillTableError(error) || isPrismaConnectionError(error)) {
-      return getFallbackSkillRecords();
-    }
-
     throw error;
   }
 }

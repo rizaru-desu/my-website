@@ -4,7 +4,6 @@ import { createHash, randomUUID } from "node:crypto";
 import { ZodError } from "zod";
 
 import { auth } from "@/lib/auth";
-import { education, experiences } from "@/lib/mock-content";
 import { hasPersistedProfileContentCoverage } from "@/lib/profile";
 import { hasPersistedSkillsCoverage } from "@/lib/skills";
 import {
@@ -22,6 +21,24 @@ import {
   VISITOR_ANALYTICS_TIMEZONE,
 } from "@/lib/visitor-analytics";
 import { resumeAssetSchema } from "@/lib/validations/resume-asset.schema";
+
+export async function getPublicExperiences() {
+  return prisma.experience.findMany({
+    orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+  });
+}
+
+export async function getPublicEducation() {
+  return prisma.education.findMany({
+    orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+  });
+}
+
+export async function getPublicCertificates() {
+  return prisma.certificate.findMany({
+    orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+  });
+}
 
 type ResumeDownloadSummaryRow = {
   currentTotal: number | bigint | string | null;
@@ -315,10 +332,11 @@ function getResumeDownloadUrlFromEnv() {
   return explicitUrl;
 }
 
-function hasExperienceResumeCoverage() {
+async function checkExperienceResumeCoverage() {
+  const allExperiences = await getPublicExperiences();
   return (
-    experiences.length > 0 &&
-    experiences.every(
+    allExperiences.length > 0 &&
+    allExperiences.every(
       (item) =>
         item.role.trim() &&
         item.company.trim() &&
@@ -328,10 +346,11 @@ function hasExperienceResumeCoverage() {
   );
 }
 
-function hasEducationResumeCoverage() {
+async function checkEducationResumeCoverage() {
+  const allEducation = await getPublicEducation();
   return (
-    education.length > 0 &&
-    education.every(
+    allEducation.length > 0 &&
+    allEducation.every(
       (item) =>
         item.degree.trim() &&
         item.school.trim() &&
@@ -729,10 +748,12 @@ export async function getDashboardResumeDownloadAnalytics(
 }
 
 export async function getDashboardResumeSyncMetric(): Promise<DashboardResumeSyncMetric> {
-  const [resumeAsset, hasProfileCoverage, hasSkillsCoverage] = await Promise.all([
+  const [resumeAsset, hasProfileCoverage, hasSkillsCoverage, hasExperienceCoverage, hasEducationCoverage] = await Promise.all([
     getAdminResumeAsset(),
     hasPersistedProfileContentCoverage(),
     hasPersistedSkillsCoverage(),
+    checkExperienceResumeCoverage(),
+    checkEducationResumeCoverage(),
   ]);
 
   const checks = [
@@ -750,13 +771,13 @@ export async function getDashboardResumeSyncMetric(): Promise<DashboardResumeSyn
     },
     {
       label: "experience",
-      passed: hasExperienceResumeCoverage(),
+      passed: hasExperienceCoverage,
       partial: false,
       weight: 20,
     },
     {
       label: "education",
-      passed: hasEducationResumeCoverage(),
+      passed: hasEducationCoverage,
       partial: false,
       weight: 10,
     },

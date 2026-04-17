@@ -1,14 +1,28 @@
-import type { Profile } from "@/lib/mock-content";
-
 export type ProfileLink = {
   href: string;
   label: string;
 };
 
-export type PublicProfileRecord = Profile & {
+export type ProfileStat = {
+  label: string;
+  value: string;
+  detail: string;
+};
+
+export type PublicProfileRecord = {
+  name: string;
+  role: string;
+  location: string;
+  availability: string;
+  tagline: string;
+  intro: string;
+  email: string;
   phone: string;
   primaryCta: string;
   profilePhotoUrl: string | null;
+  focus: string[];
+  stats: ProfileStat[];
+  socialLinks: ProfileLink[];
 };
 
 export type AdminProfileRecord = {
@@ -23,6 +37,8 @@ export type AdminProfileRecord = {
   profilePhotoUrl: string | null;
   shortIntro: string;
   socialLinks: ProfileLink[];
+  focus: string[];
+  stats: ProfileStat[];
   source: "database" | "fallback";
   updatedAt: string | null;
 };

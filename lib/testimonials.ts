@@ -3,7 +3,6 @@ import "server-only";
 import { Prisma } from "@prisma/client";
 
 import { auth } from "@/lib/auth";
-import { testimonials as fallbackTestimonials } from "@/lib/mock-content";
 import {
   isMissingTestimonialTableError,
   isPrismaConnectionError,
@@ -241,22 +240,6 @@ function getTestimonialsStorageMessage(error: unknown) {
   return "The testimonial data could not be loaded right now.";
 }
 
-function getPublicFallbackTestimonials() {
-  return fallbackTestimonials.map((testimonial, index) => {
-    const parts = testimonial.role.split(",").map((value) => value.trim());
-    const [role, ...companyParts] = parts;
-
-    return {
-      company: companyParts.join(", ") || null,
-      id: `mock-testimonial-${index + 1}`,
-      message: testimonial.quote,
-      name: testimonial.name,
-      rating: 5,
-      role: role || testimonial.role,
-    } satisfies PublicHomepageTestimonial;
-  });
-}
-
 export async function getAdminTestimonialsContext(
   requestHeaders: Headers,
 ): Promise<AdminTestimonialsContext> {
@@ -319,8 +302,8 @@ export async function getPublicHomepageTestimonials(): Promise<PublicHomepageTes
     });
 
     return testimonials.map((testimonial) => toPublicRecord(toAdminRecord(testimonial)));
-  } catch {
-    return getPublicFallbackTestimonials();
+  } catch (error) {
+    throw new TestimonialsStorageError(getTestimonialsStorageMessage(error));
   }
 }
 

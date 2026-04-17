@@ -25,6 +25,12 @@ export const socialLinkSchema = z.object({
     .max(120, "Keep the URL under 120 characters."),
 });
 
+export const profileStatSchema = z.object({
+  label: z.string().min(1, "Enter a label.").max(40, "Keep the label under 40 characters."),
+  value: z.string().min(1, "Enter a value.").max(20, "Keep the value under 20 characters."),
+  detail: z.string().min(1, "Enter a detail message.").max(80, "Keep the detail under 80 characters."),
+});
+
 export const profileSchema = z.object({
   fullName: z
     .string()
@@ -66,6 +72,8 @@ export const profileSchema = z.object({
     .array(socialLinkSchema)
     .min(1, "Add at least one social link.")
     .max(4, "Keep social links to four entries or fewer."),
+  focus: z.array(z.string().min(2, "Focus area must be at least 2 chars.").max(60, "Focus area must be under 60 chars.")),
+  stats: z.array(profileStatSchema),
 });
 
 export type ProfileFormValues = z.infer<typeof profileSchema>;

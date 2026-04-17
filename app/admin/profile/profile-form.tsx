@@ -306,8 +306,10 @@ export function ProfileForm() {
       phone: storedProfile.phone,
       primaryCta: storedProfile.primaryCta,
       profilePhotoUrl: storedProfile.profilePhotoUrl,
-      shortIntro: storedProfile.shortIntro,
       socialLinks: storedProfile.socialLinks,
+      shortIntro: storedProfile.shortIntro,
+      focus: storedProfile.focus,
+      stats: storedProfile.stats,
     });
   }, [form, storedProfile]);
 
@@ -670,6 +672,190 @@ export function ProfileForm() {
                 )}
               </form.Field>
             </section>
+
+            <Separator />
+
+            <section className="space-y-5">
+              <div className="space-y-2">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-ink/65">
+                  Focus Areas
+                </p>
+                <p className="text-sm leading-7 text-ink/70">
+                  Key areas of expertise for the profile.
+                </p>
+              </div>
+
+              <form.Field name="focus" mode="array">
+                {(focusField) => (
+                  <div className="space-y-4">
+                    {focusField.state.value.map((_, index) => (
+                      <div key={`focus-${index}`} className="flex items-start gap-4">
+                        <form.Field name={`focus[${index}]` as const}>
+                          {(field) => (
+                            <div className="flex-1 space-y-2">
+                              <Input
+                                id={field.name}
+                                value={field.state.value}
+                                onBlur={field.handleBlur}
+                                onChange={(event) =>
+                                  field.handleChange(event.target.value)
+                                }
+                                placeholder="E.g. Product-minded engineering"
+                              />
+                              <FieldError
+                                errors={field.state.meta.errors}
+                                touched={field.state.meta.isTouched}
+                              />
+                            </div>
+                          )}
+                        </form.Field>
+                        <Button
+                          type="button"
+                          variant="muted"
+                          disabled={focusField.state.value.length <= 1}
+                          onClick={() => focusField.removeValue(index)}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    ))}
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Button
+                        type="button"
+                        variant="muted"
+                        className="bg-white"
+                        onClick={() => focusField.pushValue("")}
+                      >
+                        Add Focus Area
+                      </Button>
+                    </div>
+
+                    <FieldError errors={focusField.state.meta.errors} touched />
+                  </div>
+                )}
+              </form.Field>
+            </section>
+
+            <Separator />
+
+            <section className="space-y-5">
+              <div className="space-y-2">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-ink/65">
+                  Key Stats
+                </p>
+                <p className="text-sm leading-7 text-ink/70">
+                  Highlight key performance or experience metrics.
+                </p>
+              </div>
+
+              <form.Field name="stats" mode="array">
+                {(statsField) => (
+                  <div className="space-y-4">
+                    {statsField.state.value.map((stat, index) => (
+                      <Card key={`stat-${index}`} className="p-4 bg-white/50 border-ink/10">
+                        <CardContent className="space-y-4">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-ink/50">Stat #{index + 1}</p>
+                            <Button
+                              type="button"
+                              variant="muted"
+                              size="sm"
+                              onClick={() => statsField.removeValue(index)}
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <form.Field name={`stats[${index}].value` as const}>
+                              {(field) => (
+                                <div className="space-y-2">
+                                  <FieldLabel htmlFor={field.name}>Metric Value</FieldLabel>
+                                  <Input
+                                    id={field.name}
+                                    value={field.state.value}
+                                    onBlur={field.handleBlur}
+                                    onChange={(event) =>
+                                      field.handleChange(event.target.value)
+                                    }
+                                    className="bg-white"
+                                    placeholder="e.g. 18"
+                                  />
+                                  <FieldError
+                                    errors={field.state.meta.errors}
+                                    touched={field.state.meta.isTouched}
+                                  />
+                                </div>
+                              )}
+                            </form.Field>
+
+                            <form.Field name={`stats[${index}].label` as const}>
+                              {(field) => (
+                                <div className="space-y-2">
+                                  <FieldLabel htmlFor={field.name}>Metric Label</FieldLabel>
+                                  <Input
+                                    id={field.name}
+                                    value={field.state.value}
+                                    onBlur={field.handleBlur}
+                                    onChange={(event) =>
+                                      field.handleChange(event.target.value)
+                                    }
+                                    className="bg-white"
+                                    placeholder="e.g. Projects shipped"
+                                  />
+                                  <FieldError
+                                    errors={field.state.meta.errors}
+                                    touched={field.state.meta.isTouched}
+                                  />
+                                </div>
+                              )}
+                            </form.Field>
+                          </div>
+                          
+                          <form.Field name={`stats[${index}].detail` as const}>
+                              {(field) => (
+                                <div className="space-y-2">
+                                  <FieldLabel htmlFor={field.name}>Detail / Context</FieldLabel>
+                                  <Input
+                                    id={field.name}
+                                    value={field.state.value}
+                                    onBlur={field.handleBlur}
+                                    onChange={(event) =>
+                                      field.handleChange(event.target.value)
+                                    }
+                                    className="bg-white"
+                                    placeholder="e.g. Across SaaS, internal tools..."
+                                  />
+                                  <FieldError
+                                    errors={field.state.meta.errors}
+                                    touched={field.state.meta.isTouched}
+                                  />
+                                </div>
+                              )}
+                            </form.Field>
+                        </CardContent>
+                      </Card>
+                    ))}
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Button
+                        type="button"
+                        variant="muted"
+                        className="bg-white"
+                        onClick={() =>
+                          statsField.pushValue({ label: "", value: "", detail: "" })
+                        }
+                      >
+                        Add Stat Card
+                      </Button>
+                    </div>
+
+                    <FieldError errors={statsField.state.meta.errors} touched />
+                  </div>
+                )}
+              </form.Field>
+            </section>
+
 
             <div className="flex flex-wrap items-center gap-4 pt-2">
               <Button

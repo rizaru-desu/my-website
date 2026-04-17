@@ -28,14 +28,14 @@ export const projectSeeds = [
     impactBullets: [
       "Clarified content hierarchy and reduced admin friction in the core showcase experience.",
       "Public sections: 6",
-      "Mock entities: 24",
+      "Database entities: 24",
       "Hero scan time: <10 sec",
     ],
     impactSummary:
       "Clarified content hierarchy and reduced admin friction in the core showcase experience.",
     metrics: [
       { label: "Public sections", value: "6" },
-      { label: "Mock entities", value: "24" },
+      { label: "Database entities", value: "24" },
       { label: "Hero scan time", value: "<10 sec" },
     ],
     outcome:
@@ -43,7 +43,7 @@ export const projectSeeds = [
     process: [
       "Mapped the recruiter journey into three beats: credibility, work evidence, and contact confidence.",
       "Built a visual language around poster-style framing, heavy borders, and headline hierarchy instead of illustration.",
-      "Structured mock CMS content to prove the site could scale into admin-managed projects, writing, and resume updates later.",
+      "Structured a database-backed CMS to prove the site could scale into admin-managed projects, writing, and resume updates later.",
     ],
     projectUrl: "https://portfolio-rizal.dev/projects/pulse-cms-portfolio",
     role: "Product Designer + Full-Stack Engineer",
@@ -53,7 +53,7 @@ export const projectSeeds = [
     summary:
       "A recruiter-friendly portfolio and content studio concept built to let one creator manage projects, writing, and proof without touching code.",
     tags: ["Portfolio Platform", "Personal Product Concept", "Product Designer + Full-Stack Engineer"],
-    techStack: ["Next.js", "TypeScript", "Tailwind CSS", "Mock CMS"],
+    techStack: ["Next.js", "TypeScript", "Tailwind CSS", "Database"],
     thumbnailPlaceholder: "Pulse CMS Portfolio cover frame",
     title: "Pulse CMS Portfolio",
     year: "2026",

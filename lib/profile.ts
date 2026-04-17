@@ -3,7 +3,6 @@ import "server-only";
 import { ZodError } from "zod";
 
 import { auth } from "@/lib/auth";
-import { profile } from "@/lib/mock-content";
 import {
   isMissingProfileContentTableError,
   isPrismaConnectionError,
@@ -14,6 +13,7 @@ import {
   type ProfileActionResult,
   type ProfileLink,
   type PublicProfileRecord,
+  type ProfileStat,
 } from "@/lib/profile.shared";
 import { profileSchema } from "@/app/admin/profile/profile.schema";
 
@@ -31,6 +31,8 @@ type StoredProfileContent = {
   profilePhotoUrl?: string | null;
   shortIntro: string;
   socialLinks: unknown;
+  focus: string[];
+  stats: unknown;
   storageKey: string;
   updatedAt: Date;
 };
@@ -69,25 +71,27 @@ function normalizeDate(value: Date | string | null | undefined) {
 }
 
 function getFallbackSocialLinks() {
-  return profile.socialLinks.map((link) => ({
-    href: link.href,
-    label: link.label,
-  }));
+  return [
+    { label: "github", href: "https://github.com/rizal-achmad" },
+    { label: "linkedin", href: "https://linkedin.com/in/rizal-achmad" }
+  ];
 }
 
 function getFallbackAdminProfileRecord(): AdminProfileRecord {
   return {
-    availability: profile.availability,
-    about: `${profile.intro} I focus on turning ambitious visual direction into UI systems that feel both memorable and maintainable for real product teams.`,
-    email: profile.email,
-    fullName: profile.name,
-    headline: profile.role,
-    location: profile.location,
+    availability: "Available for selective 2026 opportunities",
+    about: "I build web experiences that give recruiters clarity fast. I focus on turning ambitious visual direction into UI systems that feel both memorable and maintainable for real product teams.",
+    email: "rizal@example.com",
+    fullName: "Rizal Achmad",
+    headline: "Full-Stack Product Engineer",
+    location: "Jakarta, Indonesia",
     phone: "+62 812 5555 2401",
     primaryCta: "View Projects",
     profilePhotoUrl: null,
-    shortIntro: profile.tagline,
+    shortIntro: "Designing fast, memorable portfolio products that feel as sharp as the work behind them.",
     socialLinks: getFallbackSocialLinks(),
+    focus: [],
+    stats: [],
     source: "fallback",
     updatedAt: null,
   };
@@ -121,6 +125,31 @@ function normalizeSocialLinks(value: unknown): ProfileLink[] {
   return links.length > 0 ? links : getFallbackSocialLinks();
 }
 
+function normalizeStats(value: unknown): ProfileStat[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (
+        typeof item === "object" &&
+        item !== null &&
+        "label" in item &&
+        "value" in item &&
+        "detail" in item &&
+        typeof item.label === "string" &&
+        typeof item.value === "string" &&
+        typeof item.detail === "string"
+      ) {
+        return {
+          label: item.label.trim(),
+          value: item.value.trim(),
+          detail: item.detail.trim(),
+        };
+      }
+      return null;
+    })
+    .filter((item): item is ProfileStat => Boolean(item?.label));
+}
+
 function toAdminProfileRecord(stored: StoredProfileContent): AdminProfileRecord {
   return {
     availability: stored.availability,
@@ -134,6 +163,8 @@ function toAdminProfileRecord(stored: StoredProfileContent): AdminProfileRecord 
     profilePhotoUrl: stored.profilePhotoUrl ?? null,
     shortIntro: stored.shortIntro,
     socialLinks: normalizeSocialLinks(stored.socialLinks),
+    focus: Array.isArray(stored.focus) ? stored.focus : [],
+    stats: normalizeStats(stored.stats),
     source: "database",
     updatedAt: normalizeDate(stored.updatedAt),
   };
@@ -141,7 +172,6 @@ function toAdminProfileRecord(stored: StoredProfileContent): AdminProfileRecord 
 
 function mergePublicProfileWithAdminRecord(record: AdminProfileRecord): PublicProfileRecord {
   return {
-    ...profile,
     availability: record.availability,
     email: record.email,
     intro: record.about,
@@ -153,6 +183,8 @@ function mergePublicProfileWithAdminRecord(record: AdminProfileRecord): PublicPr
     role: record.headline,
     socialLinks: record.socialLinks,
     tagline: record.shortIntro,
+    focus: record.focus,
+    stats: record.stats,
   } satisfies PublicProfileRecord;
 }
 
@@ -229,6 +261,8 @@ export async function updateAdminProfileContent(
         profilePhotoUrl: values.profilePhotoUrl,
         shortIntro: values.shortIntro,
         socialLinks: values.socialLinks,
+        focus: values.focus,
+        stats: values.stats,
       },
       create: {
         availability: values.availability,
@@ -242,6 +276,8 @@ export async function updateAdminProfileContent(
         profilePhotoUrl: values.profilePhotoUrl,
         shortIntro: values.shortIntro,
         socialLinks: values.socialLinks,
+        focus: values.focus,
+        stats: values.stats,
         storageKey: PRIMARY_PROFILE_STORAGE_KEY,
       },
     });

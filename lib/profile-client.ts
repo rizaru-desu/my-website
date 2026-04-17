@@ -2,14 +2,22 @@
 
 import { useEffect, useState } from "react";
 
-import { profile as fallbackProfile } from "@/lib/mock-content";
 import type { PublicProfileRecord } from "@/lib/profile.shared";
 
 const fallbackPublicProfile: PublicProfileRecord = {
-  ...fallbackProfile,
-  phone: "+62 812 5555 2401",
-  primaryCta: "View Projects",
+  name: "",
+  role: "",
+  location: "",
+  availability: "",
+  tagline: "",
+  intro: "",
+  email: "",
+  phone: "",
+  primaryCta: "",
   profilePhotoUrl: null,
+  focus: [],
+  stats: [],
+  socialLinks: [],
 };
 
 export function usePublicProfile() {

@@ -25,6 +25,11 @@ export const metadata: Metadata = {
   title: "Rizal Achmad | Portfolio Platform",
   description:
     "A portfolio platform with bold editorial styling, layered layouts, and recruiter-friendly public pages.",
+  icons: {
+    icon: "/icon.png",
+    shortcut: "/icon.png",
+    apple: "/icon.png",
+  },
 };
 
 export default function RootLayout({

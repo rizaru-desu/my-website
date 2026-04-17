@@ -218,6 +218,17 @@ jobs:
       - name: Upload release artifact
         env:
           DEPLOY_ENV_PRODUCTION: ${{ secrets.DEPLOY_ENV_PRODUCTION || vars.DEPLOY_ENV_PRODUCTION || '' }}
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET || '' }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL || '' }}
+          GOOGLE_SMTP_USER: ${{ secrets.GOOGLE_SMTP_USER || vars.GOOGLE_SMTP_USER || '' }}
+          GOOGLE_APP_PASSWORD: ${{ secrets.GOOGLE_APP_PASSWORD || '' }}
+          ANALYTICS_HASH_SALT: ${{ secrets.ANALYTICS_HASH_SALT || '' }}
+          COMMENT_HASH_SALT: ${{ secrets.COMMENT_HASH_SALT || '' }}
+          BETTER_AUTH_URL: ${{ vars.BETTER_AUTH_URL || secrets.BETTER_AUTH_URL || '' }}
+          MAIL_FROM_ADDRESS: ${{ vars.MAIL_FROM_ADDRESS || secrets.MAIL_FROM_ADDRESS || '' }}
+          MAIL_FROM_NAME: ${{ vars.MAIL_FROM_NAME || secrets.MAIL_FROM_NAME || '' }}
+          REDIS_URL: ${{ vars.REDIS_URL || secrets.REDIS_URL || '' }}
+          RESUME_DOWNLOAD_URL: ${{ vars.RESUME_DOWNLOAD_URL || secrets.RESUME_DOWNLOAD_URL || '' }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
         run: |
@@ -236,7 +247,32 @@ jobs:
             tmp_env_file="$(mktemp)"
             trap 'rm -f "$tmp_env_file"' EXIT
             printf '%s' "$DEPLOY_ENV_PRODUCTION" > "$tmp_env_file"
+          else
+            tmp_env_file="$(mktemp)"
+            trap 'rm -f "$tmp_env_file"' EXIT
 
+            escape_env_value() {
+              printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+            }
+
+            append_env_line() {
+              printf '%s="%s"\n' "$1" "$(escape_env_value "$2")" >> "$tmp_env_file"
+            }
+
+            append_env_line "BETTER_AUTH_SECRET" "${BETTER_AUTH_SECRET:-}"
+            append_env_line "BETTER_AUTH_URL" "${BETTER_AUTH_URL:-}"
+            append_env_line "DATABASE_URL" "${DATABASE_URL:-}"
+            append_env_line "GOOGLE_SMTP_USER" "${GOOGLE_SMTP_USER:-}"
+            append_env_line "GOOGLE_APP_PASSWORD" "${GOOGLE_APP_PASSWORD:-}"
+            append_env_line "MAIL_FROM_ADDRESS" "${MAIL_FROM_ADDRESS:-}"
+            append_env_line "MAIL_FROM_NAME" "${MAIL_FROM_NAME:-}"
+            append_env_line "REDIS_URL" "${REDIS_URL:-}"
+            append_env_line "ANALYTICS_HASH_SALT" "${ANALYTICS_HASH_SALT:-}"
+            append_env_line "COMMENT_HASH_SALT" "${COMMENT_HASH_SALT:-}"
+            append_env_line "RESUME_DOWNLOAD_URL" "${RESUME_DOWNLOAD_URL:-}"
+          fi
+
+          if [ -f "$tmp_env_file" ]; then
             ssh deploy-target "mkdir -p '$DEPLOY_PATH/shared' '$DEPLOY_PATH/tmp'"
             scp "$tmp_env_file" "deploy-target:$DEPLOY_PATH/tmp/.env.production"
             ssh deploy-target "install -m 600 '$DEPLOY_PATH/tmp/.env.production' '$DEPLOY_PATH/shared/.env.production' && rm -f '$DEPLOY_PATH/tmp/.env.production'"

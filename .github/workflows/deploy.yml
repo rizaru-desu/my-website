@@ -94,7 +94,12 @@ jobs:
           NEXT_PUBLIC_GIT_SHA: ${{ github.sha }}
           BUILD_TIMESTAMP: ${{ steps.release_meta.outputs.build_timestamp }}
           NEXT_PUBLIC_BUILD_TIMESTAMP: ${{ steps.release_meta.outputs.build_timestamp }}
-        run: pnpm run package:release -- "${{ steps.release_meta.outputs.artifact_name }}" "${{ steps.release_meta.outputs.release_version }}"
+          run: |
+            # 1. Pastikan folder build ada
+            mkdir -p build
+
+            # 2. Jalankan perintah build (pilih salah satu cara di bawah)
+            pnpm run package:release -- "${{ steps.release_meta.outputs.artifact_name }}" "${{ steps.release_meta.outputs.release_version }}"
 
       - name: Install cloudflared
         if: ${{ env.DEPLOY_USE_CLOUDFLARE_TUNNEL == 'true' }}

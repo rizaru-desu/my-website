@@ -31,7 +31,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           cache: "pnpm"
 
       - name: Install dependencies
@@ -49,6 +49,9 @@ jobs:
           mkdir -p .next/standalone/.next
           cp -r .next/static .next/standalone/.next/
           cp ecosystem.config.js .next/standalone/
+          cp package.json .next/standalone/
+          if [ -f package-lock.json ]; then cp package-lock.json .next/standalone/; fi
+          if [ -f pnpm-lock.yaml ]; then cp pnpm-lock.yaml .next/standalone/; fi
 
       - name: Install cloudflared
         run: |
@@ -98,6 +101,7 @@ jobs:
           # Sekarang sistem sudah kenal 'node' dan 'pm2' secara otomatis
           cd /srv/www/portofolio
           mkdir -p logs
+          npm rebuild argon2 --build-from-source
 
           if pm2 describe portofolio >/dev/null 2>&1; then
             pm2 reload ecosystem.config.js --update-env --env production

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { unstable_noStore as noStore } from "next/cache";
 import { notFound } from "next/navigation";
 
 import { BlogArticleMdx } from "@/components/blog-article-mdx";
@@ -15,6 +16,8 @@ export default async function BlogDetailPage({
 }: {
   params: Promise<{ slug: string }>;
 }) {
+  noStore();
+
   const { slug } = await params;
   const post = await getPublicBlogPostBySlug(slug);
 

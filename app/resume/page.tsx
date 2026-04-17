@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { unstable_noStore as noStore } from "next/cache";
 
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +17,8 @@ export default async function ResumePage({
     download?: string;
   }>;
 }) {
+  noStore();
+
   const { download } = await searchParams;
   const showDownloadUnavailable = download === "unavailable";
   const [profile, skills, experiences, education] = await Promise.all([

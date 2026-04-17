@@ -15,6 +15,9 @@ module.exports = {
 
       node_args: "--max-old-space-size=512",
       env: {
+        NODE_ENV: "development",
+      },
+      env_production: {
         NODE_ENV: "production",
         PORT: 3000,
         HOSTNAME: "0.0.0.0",

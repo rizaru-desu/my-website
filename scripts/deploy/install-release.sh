@@ -12,21 +12,33 @@ shared_dir="${app_root}/shared"
 current_link="${app_root}/current"
 current_version_file="${app_root}/CURRENT_VERSION"
 current_release_json="${app_root}/current-release.json"
+shared_env_file="${shared_dir}/.env.production"
+release_env_file="${release_dir}/.env.production"
 
 mkdir -p "$releases_dir" "$shared_dir" "$release_dir/logs"
 
-if [ -f "${shared_dir}/.env" ]; then
-  ln -sfn "${shared_dir}/.env" "${release_dir}/.env"
+if [ ! -f "$shared_env_file" ]; then
+  echo "Missing production environment file: ${shared_env_file}" >&2
+  exit 1
 fi
+
+rm -f "${release_dir}/.env"
+ln -sfn "$shared_env_file" "$release_env_file"
 
 ln -sfn "$release_dir" "$current_link"
 
 cd "$current_link"
-pm2 startOrReload ecosystem.config.js --update-env
-
-if command -v pm2 >/dev/null 2>&1; then
-  pm2 save
+if ! command -v pm2 >/dev/null 2>&1; then
+  echo "PM2 is not installed on the server. Install PM2 before activating this release." >&2
+  exit 1
 fi
+
+set -a
+. "$release_env_file"
+set +a
+
+pm2 startOrReload ecosystem.config.js --env production --update-env
+pm2 save
 
 if [ -f "${release_dir}/VERSION" ]; then
   cp "${release_dir}/VERSION" "$current_version_file"

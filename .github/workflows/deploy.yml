@@ -94,12 +94,9 @@ jobs:
           NEXT_PUBLIC_GIT_SHA: ${{ github.sha }}
           BUILD_TIMESTAMP: ${{ steps.release_meta.outputs.build_timestamp }}
           NEXT_PUBLIC_BUILD_TIMESTAMP: ${{ steps.release_meta.outputs.build_timestamp }}
-          run: |
-            # 1. Pastikan folder build ada
-            mkdir -p build
-
-            # 2. Jalankan perintah build (pilih salah satu cara di bawah)
-            pnpm run package:release -- "${{ steps.release_meta.outputs.artifact_name }}" "${{ steps.release_meta.outputs.release_version }}"
+        run: |
+          mkdir -p build
+          pnpm run package:release -- "${{ steps.release_meta.outputs.artifact_name }}" "${{ steps.release_meta.outputs.release_version }}"
 
       - name: Install cloudflared
         if: ${{ env.DEPLOY_USE_CLOUDFLARE_TUNNEL == 'true' }}
@@ -229,8 +226,8 @@ jobs:
             export CF_ACCESS_CLIENT_SECRET
           fi
 
-          ssh deploy-target "mkdir -p '$DEPLOY_PATH/releases' '$DEPLOY_PATH/shared' '$DEPLOY_PATH/incoming'"
-          scp "build/${{ steps.release_meta.outputs.artifact_name }}" "deploy-target:$DEPLOY_PATH/incoming/${{ steps.release_meta.outputs.artifact_name }}"
+          ssh deploy-target "mkdir -p '$DEPLOY_PATH/releases' '$DEPLOY_PATH/shared' '$DEPLOY_PATH/tmp'"
+          scp "build/${{ steps.release_meta.outputs.artifact_name }}" "deploy-target:$DEPLOY_PATH/tmp/${{ steps.release_meta.outputs.artifact_name }}"
 
       - name: Activate release
         env:
@@ -250,9 +247,16 @@ jobs:
 
           ssh deploy-target \
             "set -euo pipefail && \
+            TMP_DIR='$DEPLOY_PATH/tmp' && \
+            ARTIFACT_PATH=\"\$TMP_DIR/${{ steps.release_meta.outputs.artifact_name }}\" && \
+            STAGING_DIR=\"\$TMP_DIR/${{ steps.release_meta.outputs.release_name }}\" && \
             RELEASE_DIR='$DEPLOY_PATH/releases/${{ steps.release_meta.outputs.release_name }}' && \
-            mkdir -p \"\$RELEASE_DIR\" && \
-            tar -xzf '$DEPLOY_PATH/incoming/${{ steps.release_meta.outputs.artifact_name }}' -C \"\$RELEASE_DIR\" && \
+            rm -rf \"\$STAGING_DIR\" && \
+            if [ -e \"\$RELEASE_DIR\" ]; then echo 'Release directory already exists: '\$RELEASE_DIR >&2; exit 1; fi && \
+            mkdir -p \"\$STAGING_DIR\" && \
+            tar -xzf \"\$ARTIFACT_PATH\" -C \"\$STAGING_DIR\" && \
+            mv \"\$STAGING_DIR\" \"\$RELEASE_DIR\" && \
             chmod +x \"\$RELEASE_DIR/scripts/deploy/install-release.sh\" && \
             KEEP_RELEASES='${KEEP_RELEASES:-5}' \"\$RELEASE_DIR/scripts/deploy/install-release.sh\" '$DEPLOY_PATH' '${{ steps.release_meta.outputs.release_name }}' && \
-            rm -f '$DEPLOY_PATH/incoming/${{ steps.release_meta.outputs.artifact_name }}'"
+            rm -f \"\$ARTIFACT_PATH\" && \
+            rmdir \"\$TMP_DIR\" 2>/dev/null || true"

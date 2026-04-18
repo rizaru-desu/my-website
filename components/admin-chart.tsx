@@ -45,6 +45,20 @@ type TooltipValue = number | string;
 
 const defaultColors = ["#2463eb", "#ef3b2d", "#f7d20a", "#111111"];
 
+function ChartContainer({
+  children,
+  height,
+}: {
+  children: ReactNode;
+  height: number;
+}) {
+  return (
+    <div className="min-w-0 w-full" style={{ height, minHeight: height }}>
+      {children}
+    </div>
+  );
+}
+
 function ChartEmptyState({ children, height }: { children: ReactNode; height: number }) {
   return (
     <div
@@ -184,8 +198,8 @@ export function AdminChart({
     const lineColor = colors[0] ?? defaultColors[0];
 
     return (
-      <div className="w-full" style={{ height }}>
-        <ResponsiveContainer width="100%" height="100%">
+      <ChartContainer height={height}>
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={height}>
           <LineChart
             data={normalizedLineData}
             margin={{ top: 12, right: 8, bottom: 4, left: -18 }}
@@ -241,7 +255,7 @@ export function AdminChart({
             />
           </LineChart>
         </ResponsiveContainer>
-      </div>
+      </ChartContainer>
     );
   }
 
@@ -266,8 +280,8 @@ export function AdminChart({
 
     return (
       <div className="space-y-4">
-        <div className="w-full" style={{ height }}>
-          <ResponsiveContainer width="100%" height="100%">
+        <ChartContainer height={height}>
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={height}>
             <PieChart>
               <Pie
                 data={normalizedBarData}
@@ -289,7 +303,7 @@ export function AdminChart({
               <Tooltip content={<ChartTooltip />} />
             </PieChart>
           </ResponsiveContainer>
-        </div>
+        </ChartContainer>
         <div className="grid gap-2 sm:grid-cols-2">
           {normalizedBarData.map((item) => (
             <div
@@ -317,8 +331,8 @@ export function AdminChart({
 
   if (type === "BarH") {
     return (
-      <div className="w-full" style={{ height }}>
-        <ResponsiveContainer width="100%" height="100%">
+      <ChartContainer height={height}>
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={height}>
           <BarChart
             data={normalizedBarData}
             layout="vertical"
@@ -360,13 +374,13 @@ export function AdminChart({
             </Bar>
           </BarChart>
         </ResponsiveContainer>
-      </div>
+      </ChartContainer>
     );
   }
 
   return (
-    <div className="w-full" style={{ height }}>
-      <ResponsiveContainer width="100%" height="100%">
+    <ChartContainer height={height}>
+      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={height}>
         <BarChart data={normalizedBarData} margin={{ top: 8, right: 12, bottom: 8, left: -14 }}>
           <CartesianGrid stroke="#111111" strokeDasharray="4 8" strokeOpacity={0.15} />
           <XAxis
@@ -390,6 +404,6 @@ export function AdminChart({
           </Bar>
         </BarChart>
       </ResponsiveContainer>
-    </div>
+    </ChartContainer>
   );
 }

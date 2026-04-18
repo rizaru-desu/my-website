@@ -1,11 +1,5 @@
 import "server-only";
 
-import {
-  DeleteObjectCommand,
-  PutObjectCommand,
-  S3Client,
-} from "@aws-sdk/client-s3";
-
 import { RESUME_STORAGE_FILE_NAME } from "@/lib/resume.shared";
 
 type ResumeR2Config = {
@@ -13,10 +7,14 @@ type ResumeR2Config = {
   accessKeyId: string;
   bucketName: string;
   publicBaseUrl: string;
+  resumePrefix: string;
   secretAccessKey: string;
 };
 
-let cachedResumeR2Client: S3Client | null = null;
+type ResumeR2Module = typeof import("@aws-sdk/client-s3");
+
+let cachedResumeR2Client: InstanceType<ResumeR2Module["S3Client"]> | null = null;
+let cachedResumeR2ModulePromise: Promise<ResumeR2Module> | null = null;
 
 function readEnv(name: string) {
   return process.env[name]?.trim() ?? "";
@@ -28,10 +26,12 @@ function getResumeR2Config(): ResumeR2Config {
     accessKeyId: readEnv("CLOUDFLARE_R2_ACCESS_KEY_ID"),
     bucketName: readEnv("CLOUDFLARE_R2_BUCKET_NAME"),
     publicBaseUrl: readEnv("CLOUDFLARE_R2_PUBLIC_URL"),
+    resumePrefix: readEnv("CLOUDFLARE_R2_RESUME_PREFIX"),
     secretAccessKey: readEnv("CLOUDFLARE_R2_SECRET_ACCESS_KEY"),
   };
 
   const missing = Object.entries(config)
+    .filter(([key]) => key !== "resumePrefix")
     .filter(([, value]) => !value)
     .map(([key]) => key);
 
@@ -52,10 +52,20 @@ function getOptionalResumeR2Config() {
   }
 }
 
-function getResumeR2Client(config: ResumeR2Config) {
+async function getResumeR2Module() {
+  if (!cachedResumeR2ModulePromise) {
+    cachedResumeR2ModulePromise = import("@aws-sdk/client-s3");
+  }
+
+  return cachedResumeR2ModulePromise;
+}
+
+async function getResumeR2Client(config: ResumeR2Config) {
   if (cachedResumeR2Client) {
     return cachedResumeR2Client;
   }
+
+  const { S3Client } = await getResumeR2Module();
 
   cachedResumeR2Client = new S3Client({
     credentials: {
@@ -69,14 +79,42 @@ function getResumeR2Client(config: ResumeR2Config) {
   return cachedResumeR2Client;
 }
 
-function buildPublicResumeUrl(publicBaseUrl: string) {
-  return `${publicBaseUrl.replace(/\/+$/, "")}/${RESUME_STORAGE_FILE_NAME}`;
+function normalizeResumePrefix(prefix: string, bucketName: string) {
+  const segments = prefix
+    .split("/")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+  if (segments[0] === bucketName) {
+    segments.shift();
+  }
+
+  return segments.join("/");
+}
+
+function buildResumeObjectKey(config: ResumeR2Config) {
+  const normalizedPrefix = normalizeResumePrefix(
+    config.resumePrefix,
+    config.bucketName,
+  );
+
+  return normalizedPrefix
+    ? `${normalizedPrefix}/${RESUME_STORAGE_FILE_NAME}`
+    : RESUME_STORAGE_FILE_NAME;
+}
+
+function buildPublicResumeUrl(config: ResumeR2Config) {
+  return `${config.publicBaseUrl.replace(/\/+$/, "")}/${buildResumeObjectKey(config)}`;
 }
 
 export async function uploadResumePdfToR2(file: File) {
   const config = getResumeR2Config();
-  const client = getResumeR2Client(config);
+  const [{ PutObjectCommand }, client] = await Promise.all([
+    getResumeR2Module(),
+    getResumeR2Client(config),
+  ]);
   const body = Buffer.from(await file.arrayBuffer());
+  const objectKey = buildResumeObjectKey(config);
 
   await client.send(
     new PutObjectCommand({
@@ -85,12 +123,12 @@ export async function uploadResumePdfToR2(file: File) {
       CacheControl: "public, max-age=300",
       ContentDisposition: `inline; filename="${RESUME_STORAGE_FILE_NAME}"`,
       ContentType: "application/pdf",
-      Key: RESUME_STORAGE_FILE_NAME,
+      Key: objectKey,
     }),
   );
 
   return {
-    downloadUrl: buildPublicResumeUrl(config.publicBaseUrl),
+    downloadUrl: buildPublicResumeUrl(config),
     fileName: RESUME_STORAGE_FILE_NAME,
     fileSizeBytes: body.byteLength,
     mimeType: "application/pdf",
@@ -104,12 +142,16 @@ export async function deleteResumePdfFromR2() {
     return;
   }
 
-  const client = getResumeR2Client(config);
+  const [{ DeleteObjectCommand }, client] = await Promise.all([
+    getResumeR2Module(),
+    getResumeR2Client(config),
+  ]);
+  const objectKey = buildResumeObjectKey(config);
 
   await client.send(
     new DeleteObjectCommand({
       Bucket: config.bucketName,
-      Key: RESUME_STORAGE_FILE_NAME,
+      Key: objectKey,
     }),
   );
 }

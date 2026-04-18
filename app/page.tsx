@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { unstable_noStore as noStore } from "next/cache";
 
 import { BlogCard } from "@/components/blog-card";
 import { ContactSection } from "@/components/contact-section";
@@ -16,6 +15,8 @@ import { getFeaturedPublicProjects, ProjectsStorageError } from "@/lib/projects"
 import { getPublicSkills } from "@/lib/skills";
 import { getPublicHomepageTestimonials } from "@/lib/testimonials";
 
+export const revalidate = 300;
+
 function getHomeProjectError(error: unknown) {
   if (error instanceof ProjectsStorageError) {
     return error.message;
@@ -25,8 +26,6 @@ function getHomeProjectError(error: unknown) {
 }
 
 export default async function Home() {
-  noStore();
-
   const [featuredPosts, testimonials, profile, skills, featuredProjectsResult] = await Promise.all([
     getFeaturedPublicBlogPosts(2),
     getPublicHomepageTestimonials(),

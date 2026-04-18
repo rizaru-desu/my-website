@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { unstable_noStore as noStore } from "next/cache";
 import { notFound } from "next/navigation";
 
 import { ProjectCard } from "@/components/project-card";
@@ -14,6 +13,8 @@ import {
   type PublicProjectSummary,
 } from "@/lib/projects.shared";
 
+export const revalidate = 300;
+
 function getProjectErrorMessage(error: unknown) {
   if (error instanceof ProjectsStorageError) {
     return error.message;
@@ -27,8 +28,6 @@ export default async function ProjectDetailPage({
 }: {
   params: Promise<{ slug: string }>;
 }) {
-  noStore();
-
   const { slug } = await params;
   let project: PublicProjectDetail | null = null;
   let relatedProjects: PublicProjectSummary[] = [];

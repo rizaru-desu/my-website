@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { unstable_noStore as noStore } from "next/cache";
 
+import { ResumeDownloadNotice } from "./resume-download-notice";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { Badge } from "@/components/ui/badge";
 import { EditorialCard } from "@/components/ui/editorial-card";
@@ -10,17 +10,9 @@ import { getPublicProfileContent } from "@/lib/profile";
 import { getPublicSkills } from "@/lib/skills";
 import { getPublicExperiences, getPublicEducation } from "@/lib/resume";
 
-export default async function ResumePage({
-  searchParams,
-}: {
-  searchParams: Promise<{
-    download?: string;
-  }>;
-}) {
-  noStore();
+export const revalidate = 300;
 
-  const { download } = await searchParams;
-  const showDownloadUnavailable = download === "unavailable";
+export default async function ResumePage() {
   const [profile, skills, experiences, education] = await Promise.all([
     getPublicProfileContent(),
     getPublicSkills(),
@@ -54,18 +46,7 @@ export default async function ResumePage({
           </div>
         </PageHero>
 
-        {showDownloadUnavailable ? (
-          <EditorialCard accent="red" className="space-y-3">
-            <Badge variant="red">Download Unavailable</Badge>
-            <h2 className="font-display text-3xl uppercase leading-none text-ink">
-              CV download is not configured yet.
-            </h2>
-            <p className="text-sm leading-7 text-ink/78">
-              Add `RESUME_DOWNLOAD_URL` on the server, then try the download button
-              again. The resume page itself still stays available for recruiters to scan.
-            </p>
-          </EditorialCard>
-        ) : null}
+        <ResumeDownloadNotice />
 
         <section className="grid gap-6 lg:grid-cols-[0.72fr_1.28fr]">
           <EditorialCard accent="blue" className="space-y-5">

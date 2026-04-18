@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { unstable_noStore as noStore } from "next/cache";
 
 import { BlogFilter } from "@/components/blog-filter";
 import { Badge } from "@/components/ui/badge";
@@ -7,9 +6,9 @@ import { EditorialCard } from "@/components/ui/editorial-card";
 import { PageHero } from "@/components/ui/page-hero";
 import { getFeaturedPublicBlogPosts, getPublicBlogPosts } from "@/lib/blog";
 
-export default async function BlogPage() {
-  noStore();
+export const revalidate = 300;
 
+export default async function BlogPage() {
   const [featuredPosts, allPosts] = await Promise.all([
     getFeaturedPublicBlogPosts(1),
     getPublicBlogPosts(),

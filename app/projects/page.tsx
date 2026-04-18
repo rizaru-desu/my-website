@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { unstable_noStore as noStore } from "next/cache";
 
 import { ProjectFilter } from "@/components/project-filter";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +10,8 @@ import {
   type PublicProjectSummary,
 } from "@/lib/projects.shared";
 
+export const revalidate = 300;
+
 function getProjectsErrorMessage(error: unknown) {
   if (error instanceof ProjectsStorageError) {
     return error.message;
@@ -20,8 +21,6 @@ function getProjectsErrorMessage(error: unknown) {
 }
 
 export default async function ProjectsPage() {
-  noStore();
-
   let projects: PublicProjectSummary[] = [];
   let loadError: string | null = null;
 

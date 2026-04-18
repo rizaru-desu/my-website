@@ -2,6 +2,9 @@ export type ResumeAssetActionResult =
   | { ok: true; message: string }
   | { ok: false; message: string };
 
+export const RESUME_STORAGE_FILE_NAME = "resume.pdf";
+export const MAX_RESUME_FILE_BYTES = 50 * 1024 * 1024;
+
 export type AdminResumeAssetRecord = {
   downloadUrl: string | null;
   fileName: string | null;

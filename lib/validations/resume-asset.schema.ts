@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { MAX_RESUME_FILE_BYTES } from "@/lib/resume.shared";
+
 function isValidResumeUrl(value: string) {
   if (value.startsWith("/")) {
     return true;
@@ -36,7 +38,7 @@ export const resumeAssetSchema = z.object({
     })
     .int()
     .min(0, "Resume file size cannot be negative.")
-    .max(50 * 1024 * 1024, "Resume file size must stay under 50MB.")
+    .max(MAX_RESUME_FILE_BYTES, "Resume file size must stay under 50MB.")
     .optional(),
   mimeType: z
     .string()

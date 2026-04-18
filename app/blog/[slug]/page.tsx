@@ -3,7 +3,10 @@ import { notFound } from "next/navigation";
 
 import { BlogArticleMdx } from "@/components/blog-article-mdx";
 import { BlogCard } from "@/components/blog-card";
-import { BlogDiscussion, BlogDiscussionSummary } from "@/components/blog-discussion";
+import {
+  BlogDiscussion,
+  BlogDiscussionSummary,
+} from "@/components/blog-discussion";
 import { ReadingProgress } from "@/components/reading-progress";
 import { Badge } from "@/components/ui/badge";
 import { EditorialCard } from "@/components/ui/editorial-card";
@@ -11,6 +14,8 @@ import { getPublicBlogPostBySlug, getPublicBlogPosts } from "@/lib/blog";
 import { getPublicBlogComments } from "@/lib/blog-discussions";
 
 export const revalidate = 300;
+
+export const dynamic = "force-dynamic";
 
 export default async function BlogDetailPage({
   params,
@@ -80,9 +85,10 @@ export default async function BlogDetailPage({
             <EditorialCard accent="blue" className="space-y-4">
               <Badge variant="blue">MDX Article Body</Badge>
               <p className="text-base leading-8 text-ink/80 sm:text-lg">
-                This story is rendered from MDX stored in the admin blog workspace,
-                so the article body can use headings, lists, blockquotes, code blocks,
-                and richer editorial structure without switching to raw HTML.
+                This story is rendered from MDX stored in the admin blog
+                workspace, so the article body can use headings, lists,
+                blockquotes, code blocks, and richer editorial structure without
+                switching to raw HTML.
               </p>
             </EditorialCard>
           </section>
@@ -97,8 +103,8 @@ export default async function BlogDetailPage({
               <EditorialCard className="space-y-4">
                 <Badge variant="cream">Reading this as a recruiter?</Badge>
                 <p className="text-sm leading-7 text-ink/75">
-                  The writing here is meant to reinforce how product decisions are
-                  framed, not just show visual taste in isolation.
+                  The writing here is meant to reinforce how product decisions
+                  are framed, not just show visual taste in isolation.
                 </p>
                 <Link href="/projects" className="button-link button-link-blue">
                   Browse Work
@@ -107,9 +113,9 @@ export default async function BlogDetailPage({
               <EditorialCard accent="red" className="space-y-4">
                 <Badge variant="red">Article Detail</Badge>
                 <p className="text-sm leading-7 text-ink/75">
-                  This article view reads directly from the admin blog workspace, so
-                  publishing or updating a story reflects here without maintaining a
-                  second content source.
+                  This article view reads directly from the admin blog
+                  workspace, so publishing or updating a story reflects here
+                  without maintaining a second content source.
                 </p>
               </EditorialCard>
               <BlogDiscussionSummary totalCount={discussion.totalCount} />

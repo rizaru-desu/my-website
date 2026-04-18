@@ -16,6 +16,7 @@ import { getPublicSkills } from "@/lib/skills";
 import { getPublicHomepageTestimonials } from "@/lib/testimonials";
 
 export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 function getHomeProjectError(error: unknown) {
   if (error instanceof ProjectsStorageError) {

@@ -7,6 +7,7 @@ import { PageHero } from "@/components/ui/page-hero";
 import { getFeaturedPublicBlogPosts, getPublicBlogPosts } from "@/lib/blog";
 
 export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 export default async function BlogPage() {
   const [featuredPosts, allPosts] = await Promise.all([
@@ -34,7 +35,10 @@ export default async function BlogPage() {
         </PageHero>
 
         {leadPost ? (
-          <EditorialCard accent="blue" className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
+          <EditorialCard
+            accent="blue"
+            className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end"
+          >
             <div className="space-y-4">
               <Badge variant="blue">Featured Article</Badge>
               <div className="space-y-3">
@@ -67,8 +71,8 @@ export default async function BlogPage() {
               The public archive is waiting for its first published article.
             </h2>
             <p className="max-w-3xl text-base leading-7 text-ink/80">
-              Publish a story from the admin workspace to light up the featured article
-              rail and the full blog archive.
+              Publish a story from the admin workspace to light up the featured
+              article rail and the full blog archive.
             </p>
           </EditorialCard>
         )}

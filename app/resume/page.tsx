@@ -12,6 +12,8 @@ import { getPublicExperiences, getPublicEducation } from "@/lib/resume";
 
 export const revalidate = 300;
 
+export const dynamic = "force-dynamic";
+
 export default async function ResumePage() {
   const [profile, skills, experiences, education] = await Promise.all([
     getPublicProfileContent(),
@@ -88,9 +90,10 @@ export default async function ResumePage() {
               Product-minded engineer with a strong visual point of view.
             </h2>
             <p className="max-w-4xl text-base leading-8 text-ink/80 sm:text-lg">
-              I build interfaces that make complex work feel clear and memorable. My
-              focus is on translating ambitious visual direction into UI systems that
-              are still credible, scalable, and easy for teams to work with.
+              I build interfaces that make complex work feel clear and
+              memorable. My focus is on translating ambitious visual direction
+              into UI systems that are still credible, scalable, and easy for
+              teams to work with.
             </p>
           </EditorialCard>
         </section>
@@ -118,7 +121,9 @@ export default async function ResumePage() {
                 </p>
               </div>
               <div className="space-y-4">
-                <p className="text-base leading-7 text-ink/80">{item.summary}</p>
+                <p className="text-base leading-7 text-ink/80">
+                  {item.summary}
+                </p>
                 <ul className="space-y-3">
                   {item.achievements.map((achievement) => (
                     <li
@@ -142,7 +147,11 @@ export default async function ResumePage() {
             className="h-full"
           >
             {education.map((item) => (
-              <EditorialCard key={item.school} accent="blue" className="space-y-4">
+              <EditorialCard
+                key={item.school}
+                accent="blue"
+                className="space-y-4"
+              >
                 <p className="text-sm font-semibold uppercase tracking-[0.22em] text-ink/60">
                   {item.period}
                 </p>
@@ -152,7 +161,9 @@ export default async function ResumePage() {
                 <p className="text-sm font-semibold uppercase tracking-[0.18em] text-ink/65">
                   {item.school}
                 </p>
-                <p className="text-sm leading-7 text-ink/80">{item.description}</p>
+                <p className="text-sm leading-7 text-ink/80">
+                  {item.description}
+                </p>
                 <div className="flex flex-wrap gap-2">
                   {item.highlights.map((highlight) => (
                     <Badge key={highlight} variant="cream">
@@ -179,7 +190,8 @@ export default async function ResumePage() {
                   {category}
                 </h3>
                 <p className="text-sm leading-7 text-ink/80">
-                  {groupSkills.filter((skill) => skill.values.featured).length > 0
+                  {groupSkills.filter((skill) => skill.values.featured).length >
+                  0
                     ? "Featured strengths from the live skills workspace."
                     : "Capability group managed from the live skills workspace."}
                 </p>

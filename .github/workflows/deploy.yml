@@ -52,6 +52,7 @@ jobs:
           cp package.json .next/standalone/
           if [ -f package-lock.json ]; then cp package-lock.json .next/standalone/; fi
           if [ -f pnpm-lock.yaml ]; then cp pnpm-lock.yaml .next/standalone/; fi
+          if [ -f pnpm-workspace.yaml ]; then cp pnpm-workspace.yaml .next/standalone/; fi
 
       - name: Install cloudflared
         run: |
@@ -102,6 +103,7 @@ jobs:
           cd /srv/www/portofolio
           mkdir -p logs
           # pnpm rebuild argon2
+          pnpm install
 
           if pm2 describe portofolio >/dev/null 2>&1; then
             pm2 reload ecosystem.config.js --update-env --env production

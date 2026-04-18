@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
 import { ZodError } from "zod";
+import { deleteResumePdfFromR2, uploadResumePdfToR2 } from "@/lib/cloudflare-r2";
 
 import { auth } from "@/lib/auth";
 import { hasPersistedProfileContentCoverage } from "@/lib/profile";
@@ -14,6 +15,8 @@ import {
 import { prisma } from "@/lib/prisma";
 import {
   type AdminResumeAssetRecord,
+  MAX_RESUME_FILE_BYTES,
+  RESUME_STORAGE_FILE_NAME,
   type ResumeAssetActionResult,
 } from "@/lib/resume.shared";
 import {
@@ -330,7 +333,14 @@ function inferResumeFileName(downloadUrl: string) {
     // ignore invalid URL parsing and fall back
   }
 
-  return "resume.pdf";
+  return RESUME_STORAGE_FILE_NAME;
+}
+
+function isPdfUpload(file: File) {
+  const normalizedType = file.type.trim().toLowerCase();
+  const normalizedName = file.name.trim().toLowerCase();
+
+  return normalizedType === "application/pdf" || normalizedName.endsWith(".pdf");
 }
 
 function toAdminResumeRecord(asset: StoredResumeAsset): AdminResumeAssetRecord {
@@ -583,7 +593,94 @@ export async function updateAdminResumeAsset(input: {
   }
 }
 
+export async function uploadAdminResumeAsset(file: File): Promise<ResumeAssetActionResult> {
+  try {
+    if (!file || file.size === 0) {
+      return {
+        ok: false,
+        message: "Choose a PDF before uploading.",
+      };
+    }
+
+    if (!isPdfUpload(file)) {
+      return {
+        ok: false,
+        message: "PDF files only. Upload the latest resume as a `.pdf` file.",
+      };
+    }
+
+    if (file.size > MAX_RESUME_FILE_BYTES) {
+      return {
+        ok: false,
+        message: "Resume file size must stay under 50MB.",
+      };
+    }
+
+    const uploadedAsset = await uploadResumePdfToR2(file);
+    const values = resumeAssetSchema.parse(uploadedAsset);
+
+    await resumeAssetModel.upsert({
+      where: {
+        storageKey: PRIMARY_RESUME_STORAGE_KEY,
+      },
+      update: {
+        downloadUrl: values.downloadUrl,
+        fileName: RESUME_STORAGE_FILE_NAME,
+        fileSizeBytes: values.fileSizeBytes ?? null,
+        mimeType: values.mimeType ?? "application/pdf",
+      },
+      create: {
+        storageKey: PRIMARY_RESUME_STORAGE_KEY,
+        downloadUrl: values.downloadUrl,
+        fileName: RESUME_STORAGE_FILE_NAME,
+        fileSizeBytes: values.fileSizeBytes ?? null,
+        mimeType: values.mimeType ?? "application/pdf",
+      },
+    });
+
+    return {
+      ok: true,
+      message: "Resume uploaded. Public CV downloads now use the latest `resume.pdf` from Cloudflare R2.",
+    };
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return {
+        ok: false,
+        message: error.issues[0]?.message ?? "Please review the uploaded resume file.",
+      };
+    }
+
+    if (isMissingResumeAssetTableError(error)) {
+      return {
+        ok: false,
+        message: "Resume storage is not ready yet. Start the database and run `npx prisma db push` first.",
+      };
+    }
+
+    if (isPrismaConnectionError(error)) {
+      return {
+        ok: false,
+        message: "The database is not reachable right now. Make sure PostgreSQL is running, then try again.",
+      };
+    }
+
+    if (error instanceof Error && error.message) {
+      return {
+        ok: false,
+        message: error.message,
+      };
+    }
+
+    return {
+      ok: false,
+      message: "The resume upload could not be completed right now.",
+    };
+  }
+}
+
 export async function clearAdminResumeAsset(): Promise<ResumeAssetActionResult> {
+  let remoteCleanupWarning: string | null = null;
+
   try {
     const existing = await getStoredResumeAsset();
 
@@ -597,11 +694,27 @@ export async function clearAdminResumeAsset(): Promise<ResumeAssetActionResult> 
       };
     }
 
+    try {
+      await deleteResumePdfFromR2();
+    } catch (error) {
+      remoteCleanupWarning =
+        error instanceof Error
+          ? error.message
+          : "Cloudflare R2 cleanup could not be completed.";
+    }
+
     await resumeAssetModel.delete({
       where: {
         storageKey: PRIMARY_RESUME_STORAGE_KEY,
       },
     });
+
+    if (remoteCleanupWarning) {
+      return {
+        ok: true,
+        message: `Stored resume asset cleared from the app. Remote bucket cleanup needs attention: ${remoteCleanupWarning}`,
+      };
+    }
 
     return {
       ok: true,

@@ -6,10 +6,12 @@ import {
   clearAdminResumeAsset,
   getAdminResumeAsset,
   getAdminResumeContext,
+  uploadAdminResumeAsset,
   updateAdminResumeAsset,
 } from "@/lib/resume";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   try {
@@ -59,6 +61,39 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json(
       { message: "The resume asset could not be updated." },
+      { status: 500 },
+    );
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    await getAdminResumeContext(request.headers);
+    const formData = await request.formData();
+    const file = formData.get("file");
+
+    if (!(file instanceof File)) {
+      return NextResponse.json(
+        { ok: false, message: "Choose a PDF before uploading." },
+        { status: 400 },
+      );
+    }
+
+    const result = await uploadAdminResumeAsset(file);
+
+    if (result.ok) {
+      revalidatePath("/resume");
+      revalidatePath("/admin/resume");
+    }
+
+    return NextResponse.json(result, { status: result.ok ? 200 : 400 });
+  } catch (error) {
+    if (error instanceof AdminResumeAccessError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
+
+    return NextResponse.json(
+      { message: "The resume upload could not be completed." },
       { status: 500 },
     );
   }

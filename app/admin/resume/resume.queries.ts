@@ -1,3 +1,4 @@
+import { RESUME_STORAGE_FILE_NAME } from "@/lib/resume.shared";
 import type {
   AdminResumeAssetRecord,
   ResumeAssetActionResult,
@@ -62,6 +63,27 @@ export async function updateAdminResumeAssetRequest(input: {
   const result = await readActionResult(
     response,
     "The resume asset could not be updated.",
+  );
+
+  if (!response.ok || !result.ok) {
+    throw new Error(result.message);
+  }
+
+  return result;
+}
+
+export async function uploadAdminResumeAssetRequest(file: File) {
+  const formData = new FormData();
+  formData.set("file", file, RESUME_STORAGE_FILE_NAME);
+
+  const response = await fetch("/api/admin/resume", {
+    body: formData,
+    method: "POST",
+  });
+
+  const result = await readActionResult(
+    response,
+    "The resume upload could not be completed.",
   );
 
   if (!response.ok || !result.ok) {

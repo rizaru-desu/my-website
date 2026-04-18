@@ -1,36 +1,41 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type DragEvent,
+} from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import {
   type AdminResumeAssetRecord,
   formatResumeFileSize,
   formatResumeUpdatedAt,
+  MAX_RESUME_FILE_BYTES,
+  RESUME_STORAGE_FILE_NAME,
 } from "@/lib/resume.shared";
+import { cn } from "@/lib/utils";
 
 import {
   adminResumeAssetQueryKey,
   clearAdminResumeAssetRequest,
   fetchAdminResumeAsset,
-  updateAdminResumeAssetRequest,
+  uploadAdminResumeAssetRequest,
 } from "./resume.queries";
 
-type DraftState = {
-  downloadUrl: string;
-  fileName: string;
-};
+type UploadState = "idle" | "ready" | "uploading";
 
-function createDraft(asset?: AdminResumeAssetRecord | null): DraftState {
-  return {
-    downloadUrl: asset?.downloadUrl ?? "",
-    fileName: asset?.fileName ?? "",
-  };
+function isPdfFile(file: File) {
+  const normalizedType = file.type.trim().toLowerCase();
+  const normalizedName = file.name.trim().toLowerCase();
+
+  return normalizedType === "application/pdf" || normalizedName.endsWith(".pdf");
 }
 
 function getSourceBadge(asset: AdminResumeAssetRecord | undefined) {
@@ -58,7 +63,7 @@ function getStatusCopy(asset: AdminResumeAssetRecord | undefined) {
   if (!asset || asset.source === "none") {
     return {
       description:
-        "No CV file is configured yet. Public downloads will stay unavailable until a URL is saved here or provided through the environment fallback.",
+        "No CV file is configured yet. Upload a PDF here and the app will store it as `resume.pdf` in Cloudflare R2.",
       title: "No tracked CV target yet",
     };
   }
@@ -66,14 +71,14 @@ function getStatusCopy(asset: AdminResumeAssetRecord | undefined) {
   if (asset.source === "env") {
     return {
       description:
-        "Public downloads currently use the environment fallback. Saving from this screen will override that fallback with a stored database record.",
+        "Public downloads currently use the environment fallback. Uploading here will replace that fallback with the Cloudflare R2 copy managed by the admin screen.",
       title: "Using environment fallback",
     };
   }
 
   return {
     description:
-      "This stored record controls the public CV download route. Recruiters clicking Download CV will be redirected to this file while tracking stays on the server.",
+      "This stored record controls the public CV download route. Recruiters clicking Download CV will be redirected to the latest `resume.pdf` while tracking stays on the server.",
     title: "Stored resume asset is live",
   };
 }
@@ -93,10 +98,13 @@ function getHostLabel(value: string | null) {
 }
 
 export function ResumeUpload() {
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const queryClient = useQueryClient();
-  const [draft, setDraft] = useState<DraftState>(createDraft());
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadState, setUploadState] = useState<UploadState>("idle");
 
   const {
     data: asset,
@@ -109,26 +117,26 @@ export function ResumeUpload() {
     refetchOnWindowFocus: false,
   });
 
-  useEffect(() => {
-    setDraft(createDraft(asset));
-  }, [asset?.downloadUrl, asset?.fileName, asset?.source, asset?.updatedAt]);
-
-  const saveMutation = useMutation({
-    mutationFn: updateAdminResumeAssetRequest,
+  const uploadMutation = useMutation({
+    mutationFn: uploadAdminResumeAssetRequest,
     onMutate: () => {
       setFeedback(null);
       setFormError(null);
+      setUploadState("uploading");
     },
     onSuccess: async (result) => {
       setFeedback(result.message);
+      setSelectedFile(null);
+      setUploadState("idle");
       await queryClient.invalidateQueries({ queryKey: adminResumeAssetQueryKey });
     },
     onError: (mutationError) => {
       setFormError(
         mutationError instanceof Error
           ? mutationError.message
-          : "The resume asset could not be saved right now.",
+          : "The resume upload could not be completed right now.",
       );
+      setUploadState(selectedFile ? "ready" : "idle");
     },
   });
 
@@ -153,10 +161,7 @@ export function ResumeUpload() {
 
   const sourceBadge = getSourceBadge(asset);
   const statusCopy = getStatusCopy(asset);
-  const isBusy = saveMutation.isPending || clearMutation.isPending;
-  const isDirty =
-    draft.downloadUrl.trim() !== (asset?.downloadUrl ?? "") ||
-    draft.fileName.trim() !== (asset?.fileName ?? "");
+  const isBusy = uploadMutation.isPending || clearMutation.isPending;
   const canClear = asset?.source === "database";
   const activeUrl = asset?.downloadUrl;
 
@@ -168,23 +173,82 @@ export function ResumeUpload() {
     [activeUrl, asset?.updatedAt],
   );
 
-  function handleSave() {
-    if (!draft.downloadUrl.trim()) {
-      setFormError("Resume URL is required.");
+  function resetInputValue() {
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
+  }
+
+  function openFilePicker() {
+    inputRef.current?.click();
+  }
+
+  function clearPendingSelection() {
+    setSelectedFile(null);
+    setUploadState("idle");
+    setFormError(null);
+    resetInputValue();
+  }
+
+  function handleSelectedFile(file: File | undefined) {
+    if (!file) {
       return;
     }
 
-    saveMutation.mutate({
-      downloadUrl: draft.downloadUrl.trim(),
-      fileName: draft.fileName.trim() || undefined,
-      mimeType: "application/pdf",
-    });
+    if (!isPdfFile(file)) {
+      setFormError("PDF files only. Choose the latest resume in `.pdf` format.");
+      setUploadState("idle");
+      resetInputValue();
+      return;
+    }
+
+    if (file.size === 0) {
+      setFormError("The selected PDF is empty.");
+      setUploadState("idle");
+      resetInputValue();
+      return;
+    }
+
+    if (file.size > MAX_RESUME_FILE_BYTES) {
+      setFormError("Resume file size must stay under 50MB.");
+      setUploadState("idle");
+      resetInputValue();
+      return;
+    }
+
+    setSelectedFile(file);
+    setFeedback(null);
+    setFormError(null);
+    setUploadState("ready");
+    resetInputValue();
   }
 
-  function handleResetDraft() {
-    setDraft(createDraft(asset));
-    setFormError(null);
-    setFeedback(null);
+  function handleInputChange(event: ChangeEvent<HTMLInputElement>) {
+    handleSelectedFile(event.target.files?.[0]);
+  }
+
+  function handleDrop(event: DragEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    setIsDragging(false);
+    handleSelectedFile(event.dataTransfer.files?.[0]);
+  }
+
+  function handleDragOver(event: DragEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    setIsDragging(true);
+  }
+
+  function handleDragLeave() {
+    setIsDragging(false);
+  }
+
+  function handleUpload() {
+    if (!selectedFile) {
+      setFormError("Choose a PDF before uploading.");
+      return;
+    }
+
+    uploadMutation.mutate(selectedFile);
   }
 
   return (
@@ -195,57 +259,71 @@ export function ResumeUpload() {
             <Badge variant={sourceBadge.variant}>{sourceBadge.label}</Badge>
             <CardTitle>Resume delivery manager</CardTitle>
             <CardDescription>
-              Save the hosted PDF URL that should power public CV downloads. The
-              download route and dashboard tracking both read from this source now.
+              Upload one PDF and the server will publish it to Cloudflare R2 as{" "}
+              <span className="font-semibold text-ink">{RESUME_STORAGE_FILE_NAME}</span>{" "}
+              for the public CV download flow.
             </CardDescription>
           </div>
 
           <Separator />
 
-          <div className="grid gap-5">
-            <label className="space-y-2">
-              <span className="text-sm font-semibold uppercase tracking-[0.16em] text-ink/70">
-                Resume PDF URL
-              </span>
-              <Input
-                type="url"
-                placeholder="https://cdn.example.com/rizal-achmad-resume.pdf"
-                value={draft.downloadUrl}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    downloadUrl: event.target.value,
-                  }))
-                }
-                disabled={isBusy || isLoading}
-              />
-              <p className="text-sm leading-6 text-ink/62">
-                Use an absolute `https://` URL or a site-relative path like
-                `/resume/rizal-achmad.pdf`.
-              </p>
-            </label>
+          <button
+            type="button"
+            onClick={openFilePicker}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            className={cn(
+              "group relative flex min-h-72 w-full flex-col items-center justify-center gap-4 overflow-hidden rounded-[28px] border-[3px] border-dashed border-ink bg-white/70 px-6 py-8 text-center shadow-[6px_6px_0_var(--ink)] transition",
+              isDragging && "bg-accent-blue/12",
+              uploadState === "uploading" && "cursor-progress opacity-70",
+            )}
+            disabled={isBusy || isLoading}
+          >
+            <input
+              ref={inputRef}
+              type="file"
+              accept="application/pdf,.pdf"
+              className="hidden"
+              onChange={handleInputChange}
+            />
 
-            <label className="space-y-2">
-              <span className="text-sm font-semibold uppercase tracking-[0.16em] text-ink/70">
-                File name label
-              </span>
-              <Input
-                type="text"
-                placeholder="Rizal-Achmad-Resume.pdf"
-                value={draft.fileName}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    fileName: event.target.value,
-                  }))
-                }
-                disabled={isBusy || isLoading}
-              />
-              <p className="text-sm leading-6 text-ink/62">
-                Optional. If left blank, the label is inferred from the saved URL.
-              </p>
-            </label>
-          </div>
+            <div className="grid h-20 w-16 place-items-center rounded-[22px] border-[3px] border-ink bg-panel font-display text-3xl uppercase text-ink">
+              PDF
+            </div>
+
+            {selectedFile ? (
+              <div className="space-y-3">
+                <p className="font-display text-3xl uppercase leading-none text-ink">
+                  {RESUME_STORAGE_FILE_NAME}
+                </p>
+                <p className="max-w-lg text-sm leading-7 text-ink/74">
+                  Source file: {selectedFile.name}
+                  <br />
+                  Size: {formatResumeFileSize(selectedFile.size)}
+                </p>
+                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-ink/64">
+                  {uploadState === "uploading"
+                    ? "Uploading to Cloudflare R2..."
+                    : "Ready to replace the current public resume"}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="font-display text-3xl uppercase leading-none text-ink">
+                  Drop resume PDF here
+                </p>
+                <p className="max-w-lg text-sm leading-7 text-ink/72">
+                  Or click to choose a file. Only PDF uploads are accepted, and every
+                  upload is stored as{" "}
+                  <span className="font-semibold text-ink">
+                    {RESUME_STORAGE_FILE_NAME}
+                  </span>{" "}
+                  in the bucket.
+                </p>
+              </div>
+            )}
+          </button>
 
           {formError ? (
             <p className="text-sm font-semibold leading-6 text-accent-red">{formError}</p>
@@ -259,18 +337,26 @@ export function ResumeUpload() {
             <Button
               type="button"
               variant="blue"
-              onClick={handleSave}
-              disabled={isBusy || isLoading || !draft.downloadUrl.trim() || !isDirty}
+              onClick={handleUpload}
+              disabled={isBusy || isLoading || !selectedFile}
             >
-              {saveMutation.isPending ? "Saving asset..." : "Save Asset"}
+              {uploadMutation.isPending ? "Uploading Resume..." : "Upload Resume"}
             </Button>
             <Button
               type="button"
               variant="muted"
-              onClick={handleResetDraft}
-              disabled={isBusy || isLoading || !isDirty}
+              onClick={openFilePicker}
+              disabled={isBusy || isLoading}
             >
-              Reset Draft
+              {selectedFile ? "Replace PDF" : "Choose PDF"}
+            </Button>
+            <Button
+              type="button"
+              variant="muted"
+              onClick={clearPendingSelection}
+              disabled={isBusy || !selectedFile}
+            >
+              Clear Selection
             </Button>
             <Button
               type="button"
@@ -385,8 +471,16 @@ export function ResumeUpload() {
                   the app completely.
                 </p>
                 <p>
-                  This screen manages the file destination only. Full binary upload and
-                  cloud storage are still separate work, so use a hosted PDF URL for now.
+                  This screen now uploads the PDF directly to Cloudflare R2 and keeps
+                  the public file name fixed as{" "}
+                  <span className="font-semibold text-ink">
+                    {RESUME_STORAGE_FILE_NAME}
+                  </span>
+                  .
+                </p>
+                <p>
+                  Configure the Cloudflare R2 account, bucket, and public URL env
+                  values on the server before using this uploader.
                 </p>
                 {isFetching ? (
                   <p className="font-semibold uppercase tracking-[0.16em] text-ink/60">

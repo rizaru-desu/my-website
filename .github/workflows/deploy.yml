@@ -16,6 +16,7 @@ jobs:
     timeout-minutes: 20
     environment: production
     env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       DATABASE_URL: "postgresql://dummy:dummy@127.0.0.1:5432/dummy?schema=public"
       BETTER_AUTH_SECRET: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
       BETTER_AUTH_URL: "http://127.0.0.1:3000"
@@ -23,13 +24,13 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "24"
           cache: "pnpm"

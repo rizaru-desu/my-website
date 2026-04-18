@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +23,6 @@ const idleState: SubmissionState = {
 };
 
 export default function TwoFactorPage() {
-  const router = useRouter();
   const { data: session, isPending: isSessionPending } = authClient.useSession();
   const [authenticatorCode, setAuthenticatorCode] = useState("");
   const [backupCode, setBackupCode] = useState("");
@@ -32,11 +30,15 @@ export default function TwoFactorPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionState, setSubmissionState] = useState<SubmissionState>(idleState);
 
+  function navigateAfterVerification() {
+    window.location.replace("/admin");
+  }
+
   useEffect(() => {
     if (!isSessionPending && session) {
-      router.replace("/admin");
+      navigateAfterVerification();
     }
-  }, [isSessionPending, router, session]);
+  }, [isSessionPending, session]);
 
   function getErrorMessage(error: unknown, fallback: string) {
     if (error && typeof error === "object" && "message" in error) {
@@ -85,7 +87,7 @@ export default function TwoFactorPage() {
       tone: "success",
       message: "Authenticator code accepted. Redirecting you now.",
     });
-    router.push("/admin");
+    navigateAfterVerification();
   }
 
   async function handleBackupSubmit(event: FormEvent<HTMLFormElement>) {
@@ -124,7 +126,7 @@ export default function TwoFactorPage() {
       tone: "success",
       message: "Backup code accepted. Redirecting you now.",
     });
-    router.push("/admin");
+    navigateAfterVerification();
   }
 
   return (

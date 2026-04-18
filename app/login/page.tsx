@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { startTransition, useEffect, useState, type FormEvent } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useState, type FormEvent } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -52,7 +52,6 @@ function getVerificationCallbackPath(redirectTo: string) {
 }
 
 export default function LoginPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session, isPending: isSessionPending } = authClient.useSession();
   const [email, setEmail] = useState("");
@@ -66,11 +65,15 @@ export default function LoginPage() {
   const redirectTo = getSafeRedirectPath(searchParams.get("redirectTo"));
   const verificationCallbackPath = getVerificationCallbackPath(redirectTo);
 
+  function navigateAfterAuth(destination: string) {
+    window.location.replace(destination);
+  }
+
   useEffect(() => {
     if (!isSessionPending && session) {
-      router.replace(redirectTo);
+      navigateAfterAuth(redirectTo);
     }
-  }, [isSessionPending, redirectTo, router, session]);
+  }, [isSessionPending, redirectTo, session]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -90,24 +93,26 @@ export default function LoginPage() {
       },
       {
         onSuccess: (context) => {
-          if (context.data?.twoFactorRedirect) {
+          if (
+            typeof context.data?.twoFactorRedirect === "string" &&
+            context.data.twoFactorRedirect
+          ) {
             setLoginState({
               tone: "success",
               message:
                 "Primary credentials accepted. Continue with your second-factor verification on the next screen.",
             });
+            navigateAfterAuth(context.data.twoFactorRedirect);
             setIsSubmitting(false);
             return;
           }
 
-        setLoginState({
-          tone: "success",
-          message: "Sign-in successful. Redirecting you now.",
-        });
-
-          startTransition(() => {
-            router.push(redirectTo);
+          setLoginState({
+            tone: "success",
+            message: "Sign-in successful. Redirecting you now.",
           });
+
+          navigateAfterAuth(redirectTo);
           setIsSubmitting(false);
         },
         onError: (context) => {

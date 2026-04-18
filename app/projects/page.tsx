@@ -11,6 +11,7 @@ import {
 } from "@/lib/projects.shared";
 
 export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 function getProjectsErrorMessage(error: unknown) {
   if (error instanceof ProjectsStorageError) {

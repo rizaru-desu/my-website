@@ -13,9 +13,14 @@ import { getAdminBlogs, BlogStorageError } from "@/lib/blog";
 import { getDashboardMessageAnalytics } from "@/lib/messages";
 import { getAdminProfileContent } from "@/lib/profile";
 import { formatProfileUpdatedAt } from "@/lib/profile.shared";
-import { getProjectDashboardSummary, ProjectsStorageError } from "@/lib/projects";
+import {
+  getProjectDashboardSummary,
+  ProjectsStorageError,
+} from "@/lib/projects";
 import { getDashboardResumeSyncMetric } from "@/lib/resume";
 import { getAdminSkills } from "@/lib/skills";
+
+export const dynamic = "force-dynamic";
 
 function SummaryStatCard({
   label,
@@ -65,35 +70,45 @@ export default async function AdminDashboardPage() {
   const session = await auth.api.getSession({
     headers: requestHeaders,
   });
-  const [messageAnalytics, profileContent, resumeSyncMetric, skills, projectSummaryResult, blogResult] =
-    await Promise.all([
-      getDashboardMessageAnalytics(),
-      getAdminProfileContent(),
-      getDashboardResumeSyncMetric(),
-      getAdminSkills(),
-      getProjectDashboardSummary()
-        .then((summary) => ({ error: null, summary }))
-        .catch((error) => ({
-          error:
-            error instanceof ProjectsStorageError
-              ? error.message
-              : "The live projects archive is unavailable right now.",
-          summary: null,
-        })),
-      getAdminBlogs()
-        .then((posts) => ({ error: null, posts }))
-        .catch((error) => ({
-          error:
-            error instanceof BlogStorageError
-              ? error.message
-              : "Blog posts unavailable right now.",
-          posts: [] as Awaited<ReturnType<typeof getAdminBlogs>>,
-        })),
-    ]);
+  const [
+    messageAnalytics,
+    profileContent,
+    resumeSyncMetric,
+    skills,
+    projectSummaryResult,
+    blogResult,
+  ] = await Promise.all([
+    getDashboardMessageAnalytics(),
+    getAdminProfileContent(),
+    getDashboardResumeSyncMetric(),
+    getAdminSkills(),
+    getProjectDashboardSummary()
+      .then((summary) => ({ error: null, summary }))
+      .catch((error) => ({
+        error:
+          error instanceof ProjectsStorageError
+            ? error.message
+            : "The live projects archive is unavailable right now.",
+        summary: null,
+      })),
+    getAdminBlogs()
+      .then((posts) => ({ error: null, posts }))
+      .catch((error) => ({
+        error:
+          error instanceof BlogStorageError
+            ? error.message
+            : "Blog posts unavailable right now.",
+        posts: [] as Awaited<ReturnType<typeof getAdminBlogs>>,
+      })),
+  ]);
   const blogPosts = blogResult.posts;
   const blogError = blogResult.error;
-  const publishedBlogCount = blogPosts.filter((p) => p.values.status === "published").length;
-  const draftBlogCount = blogPosts.filter((p) => p.values.status === "draft").length;
+  const publishedBlogCount = blogPosts.filter(
+    (p) => p.values.status === "published",
+  ).length;
+  const draftBlogCount = blogPosts.filter(
+    (p) => p.values.status === "draft",
+  ).length;
   const recentBlogPosts = blogPosts.slice(0, 3);
   const canManageResume = session?.user?.role === "architect";
   const canManageProfile = session?.user?.role === "architect";
@@ -101,8 +116,12 @@ export default async function AdminDashboardPage() {
   const projectSummaryError = projectSummaryResult.error;
   const hasProfilePhoto = Boolean(profileContent.profilePhotoUrl);
   const profileSourceLabel =
-    profileContent.source === "database" ? "Database Saved" : "Fallback Content";
-  const profileStatusLabel = hasProfilePhoto ? "Photo Live" : "Initials Fallback";
+    profileContent.source === "database"
+      ? "Database Saved"
+      : "Fallback Content";
+  const profileStatusLabel = hasProfilePhoto
+    ? "Photo Live"
+    : "Initials Fallback";
   const skillCategories = Array.from(
     skills.reduce((map, skill) => {
       const existingSkills = map.get(skill.values.category) ?? [];
@@ -114,14 +133,17 @@ export default async function AdminDashboardPage() {
     leftCategory.localeCompare(rightCategory),
   );
   const featuredSkills = skills.filter((skill) => skill.values.featured);
-  const advancedSkills = skills.filter((skill) => skill.values.level === "advanced");
+  const advancedSkills = skills.filter(
+    (skill) => skill.values.level === "advanced",
+  );
   const hasDatabaseSkills = skills.some((skill) => skill.source === "database");
   const latestSkillUpdate =
     skills
       .map((skill) => new Date(skill.updatedAt))
       .filter((date) => !Number.isNaN(date.getTime()) && date.getTime() > 0)
-      .sort((leftDate, rightDate) => rightDate.getTime() - leftDate.getTime())[0] ??
-    null;
+      .sort(
+        (leftDate, rightDate) => rightDate.getTime() - leftDate.getTime(),
+      )[0] ?? null;
   const skillSourceLabel =
     skills.length === 0
       ? "Empty Board"
@@ -139,8 +161,12 @@ export default async function AdminDashboardPage() {
     {
       label: "Published Projects",
       accent: "red" as const,
-      change: projectSummaryError ? "Storage issue" : `${projectSummary?.featuredCount ?? 0} featured`,
-      note: projectSummaryError ? projectSummaryError : `${projectSummary?.totalCount ?? 0} total projects with ${projectSummary?.unpublishedCount ?? 0} not yet published.`,
+      change: projectSummaryError
+        ? "Storage issue"
+        : `${projectSummary?.featuredCount ?? 0} featured`,
+      note: projectSummaryError
+        ? projectSummaryError
+        : `${projectSummary?.totalCount ?? 0} total projects with ${projectSummary?.unpublishedCount ?? 0} not yet published.`,
       value: String(projectSummary?.publishedCount ?? 0).padStart(2, "0"),
     },
     {
@@ -164,7 +190,8 @@ export default async function AdminDashboardPage() {
       title: "Profile & Resume",
       itemCount: `${profileContent.socialLinks.length} links`,
       status: profileContent.source === "database" ? "Live" : "Fallback",
-      description: "Core identity, availability, links, and resume highlights that drive the public hero and resume route.",
+      description:
+        "Core identity, availability, links, and resume highlights that drive the public hero and resume route.",
       href: "/admin/profile",
       accent: "blue" as const,
     },
@@ -172,7 +199,8 @@ export default async function AdminDashboardPage() {
       title: "Account Settings",
       itemCount: "6 controls",
       status: "Security Preview",
-      description: "Login identity, password and email changes, 2FA setup, and delete-account confirmation in a dedicated surface.",
+      description:
+        "Login identity, password and email changes, 2FA setup, and delete-account confirmation in a dedicated surface.",
       href: "/admin/account",
       accent: "red" as const,
     },
@@ -180,15 +208,23 @@ export default async function AdminDashboardPage() {
       title: "Projects Library",
       itemCount: `${projectSummary?.totalCount ?? 0} entries`,
       status: projectStatusLabel,
-      description: "Case-study cards, detail-page content, metrics, and featured ordering for the public work archive.",
+      description:
+        "Case-study cards, detail-page content, metrics, and featured ordering for the public work archive.",
       href: "/admin/projects",
       accent: "red" as const,
     },
     {
       title: "Blog Editorial",
       itemCount: blogError ? "Unavailable" : `${blogPosts.length} entries`,
-      status: blogError ? "Storage issue" : publishedBlogCount > 0 ? `${publishedBlogCount} live` : draftBlogCount > 0 ? "Drafting" : "Empty",
-      description: "Article lineup with tag organization, featured stories, and editorial framing for the thought-leadership side.",
+      status: blogError
+        ? "Storage issue"
+        : publishedBlogCount > 0
+          ? `${publishedBlogCount} live`
+          : draftBlogCount > 0
+            ? "Drafting"
+            : "Empty",
+      description:
+        "Article lineup with tag organization, featured stories, and editorial framing for the thought-leadership side.",
       href: "/admin/blog",
       accent: "cream" as const,
     },
@@ -196,7 +232,8 @@ export default async function AdminDashboardPage() {
       title: "Skills Workspace",
       itemCount: `${skills.length} skills`,
       status: hasDatabaseSkills ? "Database live" : "Seed fallback",
-      description: "Persisted capability tags, levels, featured flags, and category grouping for public skill sections.",
+      description:
+        "Persisted capability tags, levels, featured flags, and category grouping for public skill sections.",
       href: "/admin/skills",
       accent: "blue" as const,
     },
@@ -206,12 +243,17 @@ export default async function AdminDashboardPage() {
     {
       title: "Profile polish",
       note: `${profileContent.availability} Photo: ${hasProfilePhoto ? "uploaded" : "using initials"}. Social links: ${profileContent.socialLinks.length}.`,
-      status: profileContent.source === "database" ? "Database live" : "Needs first save",
+      status:
+        profileContent.source === "database"
+          ? "Database live"
+          : "Needs first save",
       accent: "blue" as const,
     },
     {
       title: "Project refresh",
-      note: projectSummaryError ? projectSummaryError : `${projectSummary?.publishedCount ?? 0} published, ${projectSummary?.unpublishedCount ?? 0} awaiting review, ${projectSummary?.featuredCount ?? 0} featured.`,
+      note: projectSummaryError
+        ? projectSummaryError
+        : `${projectSummary?.publishedCount ?? 0} published, ${projectSummary?.unpublishedCount ?? 0} awaiting review, ${projectSummary?.featuredCount ?? 0} featured.`,
       status: projectStatusLabel,
       accent: "red" as const,
     },
@@ -220,7 +262,7 @@ export default async function AdminDashboardPage() {
       note: `${featuredSkills.length} featured, ${advancedSkills.length} advanced, ${skillCategories.length} categories.`,
       status: hasDatabaseSkills ? "Database live" : "Needs first save",
       accent: "cream" as const,
-    }
+    },
   ];
 
   return (
@@ -297,7 +339,10 @@ export default async function AdminDashboardPage() {
 
           <div className="flex flex-wrap gap-3 pt-1">
             {canManageProfile ? (
-              <Link href="/admin/profile" className="button-link button-link-blue">
+              <Link
+                href="/admin/profile"
+                className="button-link button-link-blue"
+              >
                 Edit Profile
               </Link>
             ) : null}
@@ -347,12 +392,15 @@ export default async function AdminDashboardPage() {
                 {skills.length} live capability tags.
               </h2>
               <p className="text-sm leading-7 text-ink/78">
-                The dashboard now reads the same persisted skills collection used by
-                the public homepage, resume, and skills manager.
+                The dashboard now reads the same persisted skills collection
+                used by the public homepage, resume, and skills manager.
               </p>
             </div>
             {canManageProfile ? (
-              <Link href="/admin/skills" className="button-link button-link-blue">
+              <Link
+                href="/admin/skills"
+                className="button-link button-link-blue"
+              >
                 Manage Skills
               </Link>
             ) : null}
@@ -376,7 +424,9 @@ export default async function AdminDashboardPage() {
             />
             <SummaryStatCard
               label="Updated"
-              value={formatDashboardDate(latestSkillUpdate?.toISOString() ?? null)}
+              value={formatDashboardDate(
+                latestSkillUpdate?.toISOString() ?? null,
+              )}
               valueClassName="text-[1.15rem] leading-[0.95] sm:text-[1.2rem]"
             />
           </div>
@@ -421,12 +471,15 @@ export default async function AdminDashboardPage() {
                       <p className="font-display text-2xl uppercase leading-none text-ink wrap-anywhere">
                         {category}
                       </p>
-                      <Badge variant={categoryFeaturedCount > 0 ? "red" : "cream"}>
+                      <Badge
+                        variant={categoryFeaturedCount > 0 ? "red" : "cream"}
+                      >
                         {categorySkills.length}
                       </Badge>
                     </div>
                     <p className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-ink/58">
-                      {categoryFeaturedCount} featured • {categoryAdvancedCount} advanced
+                      {categoryFeaturedCount} featured • {categoryAdvancedCount}{" "}
+                      advanced
                     </p>
                   </div>
                 );
@@ -451,7 +504,9 @@ export default async function AdminDashboardPage() {
               <p className="text-sm font-semibold uppercase tracking-[0.22em] text-ink/60">
                 {metric.label}
               </p>
-              <span className="sticker-chip sticker-chip-cream">{metric.change}</span>
+              <span className="sticker-chip sticker-chip-cream">
+                {metric.change}
+              </span>
             </div>
             <p className="font-display text-5xl uppercase leading-none text-ink">
               {metric.value}
@@ -461,7 +516,10 @@ export default async function AdminDashboardPage() {
         ))}
       </section>
 
-      <DashboardAnalytics canManageResume={canManageResume} messageAnalytics={messageAnalytics} />
+      <DashboardAnalytics
+        canManageResume={canManageResume}
+        messageAnalytics={messageAnalytics}
+      />
 
       <SectionShell
         label="Collections"
@@ -527,9 +585,14 @@ export default async function AdminDashboardPage() {
               >
                 <div className="flex items-start justify-between gap-3">
                   <p className="text-sm font-semibold uppercase tracking-[0.22em] text-ink/60">
-                    {post.values.status} • {post.values.tags?.slice(0, 2).join(", ") || "Untagged"}
+                    {post.values.status} •{" "}
+                    {post.values.tags?.slice(0, 2).join(", ") || "Untagged"}
                   </p>
-                  <Badge variant={post.values.status === "published" ? "red" : "cream"}>
+                  <Badge
+                    variant={
+                      post.values.status === "published" ? "red" : "cream"
+                    }
+                  >
                     {post.values.status === "published" ? "Live" : "Draft"}
                   </Badge>
                 </div>
@@ -559,9 +622,7 @@ export default async function AdminDashboardPage() {
                 <h3 className="font-display text-3xl uppercase leading-none text-ink">
                   {item.title}
                 </h3>
-                <Badge variant={item.accent}>
-                  {item.status}
-                </Badge>
+                <Badge variant={item.accent}>{item.status}</Badge>
               </div>
               <p className="text-sm leading-7 text-ink/78">{item.note}</p>
             </EditorialCard>

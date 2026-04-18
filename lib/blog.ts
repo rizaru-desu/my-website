@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { ZodError } from "zod";
 
+export const dynamic = "force-dynamic";
+
 import { blogSchema, type BlogFormValues } from "@/app/admin/blog/blog.schema";
 import { auth } from "@/lib/auth";
 import { getBlogCommentCountsByPostId } from "@/lib/blog-discussions";
@@ -53,16 +55,18 @@ type AdminBlogContext = {
   permissions: BlogPermissionSet;
 };
 
-const blogPostModel = (prisma as typeof prisma & {
-  blogPost: {
-    create: (args: unknown) => Promise<StoredBlogPost>;
-    delete: (args: unknown) => Promise<StoredBlogPost>;
-    findFirst: (args: unknown) => Promise<StoredBlogPost | null>;
-    findMany: (args: unknown) => Promise<StoredBlogPost[]>;
-    findUnique: (args: unknown) => Promise<StoredBlogPost | null>;
-    update: (args: unknown) => Promise<StoredBlogPost>;
-  };
-}).blogPost;
+const blogPostModel = (
+  prisma as typeof prisma & {
+    blogPost: {
+      create: (args: unknown) => Promise<StoredBlogPost>;
+      delete: (args: unknown) => Promise<StoredBlogPost>;
+      findFirst: (args: unknown) => Promise<StoredBlogPost | null>;
+      findMany: (args: unknown) => Promise<StoredBlogPost[]>;
+      findUnique: (args: unknown) => Promise<StoredBlogPost | null>;
+      update: (args: unknown) => Promise<StoredBlogPost>;
+    };
+  }
+).blogPost;
 
 export class AdminBlogAccessError extends Error {
   status: 401 | 403;
@@ -121,7 +125,9 @@ function getBlogStorageMessage(error: unknown) {
   return "The blog data could not be updated right now.";
 }
 
-function toStoredStatus(status: BlogFormValues["status"]): StoredBlogPostStatus {
+function toStoredStatus(
+  status: BlogFormValues["status"],
+): StoredBlogPostStatus {
   if (status === "published") {
     return "PUBLISHED";
   }
@@ -215,7 +221,14 @@ async function hasPermission(
   headers: Headers,
   userId: string,
   resource: "article" | "comment",
-  action: "create" | "delete" | "draft" | "moderate" | "publish" | "read" | "update",
+  action:
+    | "create"
+    | "delete"
+    | "draft"
+    | "moderate"
+    | "publish"
+    | "read"
+    | "update",
 ) {
   const result = await auth.api.userHasPermission({
     body: {
@@ -269,7 +282,10 @@ async function createDuplicateSlug(baseSlug: string) {
   let attempt = 1;
 
   while (attempt < 100) {
-    const candidate = attempt === 1 ? `${normalizedBase}-copy` : `${normalizedBase}-copy-${attempt}`;
+    const candidate =
+      attempt === 1
+        ? `${normalizedBase}-copy`
+        : `${normalizedBase}-copy-${attempt}`;
     const existing = await blogPostModel.findUnique({
       where: {
         slug: candidate,
@@ -307,29 +323,46 @@ function assertPostMutationAccess(
   nextStatus: BlogFormValues["status"],
 ) {
   if (!canManageBlogPost(context.permissions, record, "update")) {
-    throw new AdminBlogAccessError(403, "You are not allowed to edit this blog post.");
+    throw new AdminBlogAccessError(
+      403,
+      "You are not allowed to edit this blog post.",
+    );
   }
 
   if (!canAccessForStatus(context.permissions, record, nextStatus)) {
     if (nextStatus === "published") {
-      throw new AdminBlogAccessError(403, "You are not allowed to publish this blog post.");
+      throw new AdminBlogAccessError(
+        403,
+        "You are not allowed to publish this blog post.",
+      );
     }
 
     if (nextStatus === "archived") {
-      throw new AdminBlogAccessError(403, "You are not allowed to archive this blog post.");
+      throw new AdminBlogAccessError(
+        403,
+        "You are not allowed to archive this blog post.",
+      );
     }
 
-    throw new AdminBlogAccessError(403, "You are not allowed to save this blog post as a draft.");
+    throw new AdminBlogAccessError(
+      403,
+      "You are not allowed to save this blog post as a draft.",
+    );
   }
 }
 
-export async function getAdminBlogContext(requestHeaders: Headers): Promise<AdminBlogContext> {
+export async function getAdminBlogContext(
+  requestHeaders: Headers,
+): Promise<AdminBlogContext> {
   const session = await auth.api.getSession({
     headers: requestHeaders,
   });
 
   if (!session?.user) {
-    throw new AdminBlogAccessError(401, "You must be signed in to manage blog posts.");
+    throw new AdminBlogAccessError(
+      401,
+      "You must be signed in to manage blog posts.",
+    );
   }
 
   const [
@@ -342,21 +375,23 @@ export async function getAdminBlogContext(requestHeaders: Headers): Promise<Admi
     canReadComments,
     canModerateComments,
     canDeleteComments,
-  ] =
-    await Promise.all([
-      hasPermission(requestHeaders, session.user.id, "article", "create"),
-      hasPermission(requestHeaders, session.user.id, "article", "delete"),
-      hasPermission(requestHeaders, session.user.id, "article", "draft"),
-      hasPermission(requestHeaders, session.user.id, "article", "publish"),
-      hasPermission(requestHeaders, session.user.id, "article", "read"),
-      hasPermission(requestHeaders, session.user.id, "article", "update"),
-      hasPermission(requestHeaders, session.user.id, "comment", "read"),
-      hasPermission(requestHeaders, session.user.id, "comment", "moderate"),
-      hasPermission(requestHeaders, session.user.id, "comment", "delete"),
-    ]);
+  ] = await Promise.all([
+    hasPermission(requestHeaders, session.user.id, "article", "create"),
+    hasPermission(requestHeaders, session.user.id, "article", "delete"),
+    hasPermission(requestHeaders, session.user.id, "article", "draft"),
+    hasPermission(requestHeaders, session.user.id, "article", "publish"),
+    hasPermission(requestHeaders, session.user.id, "article", "read"),
+    hasPermission(requestHeaders, session.user.id, "article", "update"),
+    hasPermission(requestHeaders, session.user.id, "comment", "read"),
+    hasPermission(requestHeaders, session.user.id, "comment", "moderate"),
+    hasPermission(requestHeaders, session.user.id, "comment", "delete"),
+  ]);
 
   if (!canRead) {
-    throw new AdminBlogAccessError(403, "You are not allowed to review blog posts.");
+    throw new AdminBlogAccessError(
+      403,
+      "You are not allowed to review blog posts.",
+    );
   }
 
   return {
@@ -393,7 +428,9 @@ export async function getAdminBlogs(): Promise<AdminBlogRecord[]> {
       ],
     });
 
-    const counts = await getBlogCommentCountsByPostId(posts.map((post) => post.id));
+    const counts = await getBlogCommentCountsByPostId(
+      posts.map((post) => post.id),
+    );
 
     return posts.map((post) => {
       const record = toAdminBlogRecord(post);
@@ -436,7 +473,9 @@ export async function getPublicBlogPosts(): Promise<PublicBlogSummary[]> {
   }
 }
 
-export async function getFeaturedPublicBlogPosts(limit?: number): Promise<PublicBlogSummary[]> {
+export async function getFeaturedPublicBlogPosts(
+  limit?: number,
+): Promise<PublicBlogSummary[]> {
   const posts = await getPublicBlogPosts();
   const featured = posts.filter((post) => post.featured);
 
@@ -447,7 +486,9 @@ export async function getFeaturedPublicBlogPosts(limit?: number): Promise<Public
   return typeof limit === "number" ? featured.slice(0, limit) : featured;
 }
 
-export async function getPublicBlogPostBySlug(slug: string): Promise<PublicBlogDetail | null> {
+export async function getPublicBlogPostBySlug(
+  slug: string,
+): Promise<PublicBlogDetail | null> {
   try {
     const post = await blogPostModel.findFirst({
       where: {
@@ -471,15 +512,24 @@ export async function createAdminBlog(
   input: BlogFormValues,
 ): Promise<BlogActionResult> {
   if (!context.permissions.canCreate) {
-    throw new AdminBlogAccessError(403, "You are not allowed to create blog posts.");
+    throw new AdminBlogAccessError(
+      403,
+      "You are not allowed to create blog posts.",
+    );
   }
 
   try {
     const values = blogSchema.parse(input);
 
-    if (!canAccessForStatus(context.permissions, {
-      authorUserId: context.currentUserId,
-    }, values.status)) {
+    if (
+      !canAccessForStatus(
+        context.permissions,
+        {
+          authorUserId: context.currentUserId,
+        },
+        values.status,
+      )
+    ) {
       throw new AdminBlogAccessError(
         403,
         values.status === "published"
@@ -601,7 +651,10 @@ export async function deleteAdminBlog(
     const existing = toAdminBlogRecord(await findBlogPostOrThrow(id));
 
     if (!canManageBlogPost(context.permissions, existing, "delete")) {
-      throw new AdminBlogAccessError(403, "You are not allowed to delete this blog post.");
+      throw new AdminBlogAccessError(
+        403,
+        "You are not allowed to delete this blog post.",
+      );
     }
 
     await blogPostModel.delete({
@@ -633,7 +686,10 @@ export async function duplicateAdminBlog(
   id: string,
 ): Promise<BlogActionResult> {
   if (!context.permissions.canCreate) {
-    throw new AdminBlogAccessError(403, "You are not allowed to duplicate blog posts.");
+    throw new AdminBlogAccessError(
+      403,
+      "You are not allowed to duplicate blog posts.",
+    );
   }
 
   try {
@@ -643,7 +699,10 @@ export async function duplicateAdminBlog(
       context.permissions.requiresOwnershipForWrite &&
       source.authorUserId !== context.currentUserId
     ) {
-      throw new AdminBlogAccessError(403, "You are not allowed to duplicate this blog post.");
+      throw new AdminBlogAccessError(
+        403,
+        "You are not allowed to duplicate this blog post.",
+      );
     }
 
     const nextSlug = await createDuplicateSlug(source.values.slug);

@@ -125,7 +125,9 @@ function normalizeCommentBody(value: string) {
 }
 
 function buildCommentFingerprint(email: string, body: string) {
-  return hashCommentValue(`${email.toLowerCase().trim()}::${normalizeCommentBody(body)}`);
+  return hashCommentValue(
+    `${email.toLowerCase().trim()}::${normalizeCommentBody(body)}`,
+  );
 }
 
 function resolveClientIp(requestHeaders: Headers) {
@@ -161,7 +163,9 @@ async function enforceSubmissionRateLimit(requestHeaders: Headers) {
   }
 
   const ipHash = getClientIpHash(requestHeaders);
-  const cooldownBucket = Math.floor(Date.now() / (COMMENT_COOLDOWN_WINDOW_SECONDS * 1000));
+  const cooldownBucket = Math.floor(
+    Date.now() / (COMMENT_COOLDOWN_WINDOW_SECONDS * 1000),
+  );
   const cooldownKey = `blog-comment:cooldown:${ipHash}:${cooldownBucket}`;
   const hourKey = `blog-comment:hour:${ipHash}`;
 
@@ -196,7 +200,10 @@ async function enforceSubmissionRateLimit(requestHeaders: Headers) {
 }
 
 function getBlogCommentStorageMessage(error: unknown) {
-  if (isMissingBlogCommentTableError(error) || isMissingBlogPostTableError(error)) {
+  if (
+    isMissingBlogCommentTableError(error) ||
+    isMissingBlogPostTableError(error)
+  ) {
     return "Comment storage is not ready yet. Start the database and run `npx prisma db push` first.";
   }
 
@@ -298,7 +305,9 @@ async function findBlogCommentOrThrow(id: string) {
   return comment as StoredBlogComment;
 }
 
-function toAdminCommentRecord(comment: StoredBlogComment): AdminBlogCommentRecord {
+function toAdminCommentRecord(
+  comment: StoredBlogComment,
+): AdminBlogCommentRecord {
   return {
     blogPostId: comment.blogPostId,
     blogPostSlug: comment.blogPost.slug,
@@ -342,7 +351,10 @@ export async function getBlogCommentCountsByPostId(postIds: string[]) {
     }
 
     for (const comment of comments) {
-      const current = counts.get(comment.blogPostId) ?? { pending: 0, total: 0 };
+      const current = counts.get(comment.blogPostId) ?? {
+        pending: 0,
+        total: 0,
+      };
       current.total += 1;
 
       if (comment.status === "PENDING") {
@@ -354,7 +366,10 @@ export async function getBlogCommentCountsByPostId(postIds: string[]) {
 
     return counts;
   } catch (error) {
-    if (isMissingBlogCommentTableError(error) || isPrismaConnectionError(error)) {
+    if (
+      isMissingBlogCommentTableError(error) ||
+      isPrismaConnectionError(error)
+    ) {
       return new Map<string, { pending: number; total: number }>();
     }
 
@@ -398,7 +413,8 @@ export async function getPublicBlogComments(
       comments: buildPublicBlogCommentTree(
         comments.map((comment) => ({
           body: comment.body,
-          createdAt: normalizeDate(comment.createdAt) ?? new Date(0).toISOString(),
+          createdAt:
+            normalizeDate(comment.createdAt) ?? new Date(0).toISOString(),
           displayName: comment.displayName,
           id: comment.id,
           parentId: comment.parentId,
@@ -473,8 +489,13 @@ export async function createPublicBlogCommentSubmission(
     const normalizedEmail = input.email.trim().toLowerCase();
     const normalizedBody = normalizeCommentBody(input.body);
     const ipHash = getClientIpHash(requestHeaders);
-    const fingerprint = buildCommentFingerprint(normalizedEmail, normalizedBody);
-    const duplicateThreshold = new Date(Date.now() - COMMENT_DUPLICATE_WINDOW_MS);
+    const fingerprint = buildCommentFingerprint(
+      normalizedEmail,
+      normalizedBody,
+    );
+    const duplicateThreshold = new Date(
+      Date.now() - COMMENT_DUPLICATE_WINDOW_MS,
+    );
 
     const duplicate = await prisma.blogComment.findFirst({
       select: {
@@ -519,10 +540,9 @@ export async function createPublicBlogCommentSubmission(
     });
 
     return {
-      message:
-        input.parentId
-          ? "Your reply is in the moderation queue and will appear after review."
-          : "Your comment is in the moderation queue and will appear after review.",
+      message: input.parentId
+        ? "Your reply is in the moderation queue and will appear after review."
+        : "Your comment is in the moderation queue and will appear after review.",
       ok: true,
     };
   } catch (error) {
@@ -576,7 +596,9 @@ export async function getAdminBlogComments(
       },
     });
 
-    return comments.map((comment) => toAdminCommentRecord(comment as StoredBlogComment));
+    return comments.map((comment) =>
+      toAdminCommentRecord(comment as StoredBlogComment),
+    );
   } catch (error) {
     throw new BlogCommentStorageError(getBlogCommentStorageMessage(error));
   }
@@ -655,10 +677,9 @@ export async function deleteAdminBlogComment(
     revalidateDiscussionSurfaces(existing.blogPost.slug);
 
     return {
-      message:
-        existing.parentId
-          ? "Reply deleted from the discussion thread."
-          : "Comment thread deleted from the discussion queue.",
+      message: existing.parentId
+        ? "Reply deleted from the discussion thread."
+        : "Comment thread deleted from the discussion queue.",
       ok: true,
     };
   } catch (error) {

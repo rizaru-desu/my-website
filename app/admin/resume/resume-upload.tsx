@@ -164,6 +164,8 @@ export function ResumeUpload() {
   const isBusy = uploadMutation.isPending || clearMutation.isPending;
   const canClear = asset?.source === "database";
   const activeUrl = asset?.downloadUrl;
+  const openFileUrl =
+    asset?.source === "database" ? "/api/cv/download" : (activeUrl ?? null);
 
   const previewMeta = useMemo(
     () => ({
@@ -438,9 +440,9 @@ export function ResumeUpload() {
                 </div>
 
                 <div className="flex flex-wrap gap-3">
-                  {activeUrl ? (
+                  {openFileUrl ? (
                     <Button type="button" variant="muted" asChild>
-                      <a href={activeUrl} target="_blank" rel="noreferrer">
+                      <a href={openFileUrl} target="_blank" rel="noreferrer">
                         Open File
                       </a>
                     </Button>

@@ -2,7 +2,13 @@ import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
 import { ZodError } from "zod";
-import { deleteResumePdfFromR2, uploadResumePdfToR2 } from "@/lib/cloudflare-r2";
+import {
+  deleteResumePdfFromR2,
+  downloadResumePdfFromR2,
+  isManagedResumeR2Url,
+  type ResumeR2Download,
+  uploadResumePdfToR2,
+} from "@/lib/cloudflare-r2";
 
 import { auth } from "@/lib/auth";
 import { hasPersistedProfileContentCoverage } from "@/lib/profile";
@@ -76,10 +82,17 @@ type ResumeDownloadRedirect =
   | {
       ok: true;
       location: string;
+      type: "redirect";
     }
   | {
       ok: false;
       location: string;
+      type: "redirect";
+    }
+  | {
+      download: ResumeR2Download;
+      ok: true;
+      type: "stream";
     };
 
 type StoredResumeAsset = {
@@ -397,14 +410,36 @@ async function getStoredResumeAsset() {
   }
 }
 
-async function getResolvedResumeDownloadUrl() {
+async function resolveResumeDownloadTarget() {
   const storedAsset = await getStoredResumeAsset();
 
   if (storedAsset?.downloadUrl) {
-    return storedAsset.downloadUrl;
+    if (isManagedResumeR2Url(storedAsset.downloadUrl)) {
+      return {
+        download: await downloadResumePdfFromR2(),
+        ok: true as const,
+        type: "stream" as const,
+      };
+    }
+
+    return {
+      location: storedAsset.downloadUrl,
+      ok: true as const,
+      type: "redirect" as const,
+    };
   }
 
-  return getResumeDownloadUrlFromEnv();
+  const envDownloadUrl = getResumeDownloadUrlFromEnv();
+
+  if (!envDownloadUrl) {
+    return null;
+  }
+
+  return {
+    location: envDownloadUrl,
+    ok: true as const,
+    type: "redirect" as const,
+  };
 }
 
 function getResumeDownloadUnavailablePath(requestUrl: string) {
@@ -420,21 +455,27 @@ export async function trackResumeDownloadRequest(
   requestHeaders: Headers,
   requestUrl: string,
 ): Promise<ResumeDownloadRedirect> {
-  const target = await getResolvedResumeDownloadUrl();
+  const target = await resolveResumeDownloadTarget();
 
   if (!target) {
     return {
       ok: false,
       location: getResumeDownloadUnavailablePath(requestUrl),
+      type: "redirect",
     };
   }
 
   const userAgent = requestHeaders.get("user-agent")?.trim() ?? "";
 
   if (!userAgent || BOT_USER_AGENT_PATTERN.test(userAgent)) {
+    if (target.type === "stream") {
+      return target;
+    }
+
     return {
       ok: true,
-      location: toAbsoluteDownloadUrl(requestUrl, target),
+      location: toAbsoluteDownloadUrl(requestUrl, target.location),
+      type: "redirect",
     };
   }
 
@@ -488,9 +529,14 @@ export async function trackResumeDownloadRequest(
     }
   }
 
+  if (target.type === "stream") {
+    return target;
+  }
+
   return {
     ok: true,
-    location: toAbsoluteDownloadUrl(requestUrl, target),
+    location: toAbsoluteDownloadUrl(requestUrl, target.location),
+    type: "redirect",
   };
 }
 

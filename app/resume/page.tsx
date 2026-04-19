@@ -184,9 +184,9 @@ export default async function ResumePage() {
               <EditorialCard
                 key={category}
                 accent={index === 0 ? "cream" : index === 1 ? "red" : "blue"}
-                className="space-y-4"
+                className="min-w-0 space-y-4"
               >
-                <h3 className="font-display text-3xl uppercase leading-none text-ink">
+                <h3 className="font-display text-[2.2rem] uppercase leading-[0.92] text-ink wrap-anywhere sm:text-3xl">
                   {category}
                 </h3>
                 <p className="text-sm leading-7 text-ink/80">
@@ -200,6 +200,7 @@ export default async function ResumePage() {
                     <Badge
                       key={skill.id}
                       variant={skill.values.featured ? "blue" : "cream"}
+                      className="max-w-full whitespace-normal text-left leading-5"
                     >
                       {skill.values.name}
                     </Badge>

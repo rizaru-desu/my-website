@@ -1,5 +1,7 @@
 import "server-only";
 
+import { Readable } from "node:stream";
+
 import { RESUME_STORAGE_FILE_NAME } from "@/lib/resume.shared";
 
 type ResumeR2Config = {
@@ -12,6 +14,15 @@ type ResumeR2Config = {
 };
 
 type ResumeR2Module = typeof import("@aws-sdk/client-s3");
+
+export type ResumeR2Download = {
+  body: ReadableStream<Uint8Array>;
+  contentLength: number | null;
+  contentType: string | null;
+  etag: string | null;
+  fileName: string;
+  lastModified: string | null;
+};
 
 let cachedResumeR2Client: InstanceType<ResumeR2Module["S3Client"]> | null = null;
 let cachedResumeR2ModulePromise: Promise<ResumeR2Module> | null = null;
@@ -107,6 +118,57 @@ function buildPublicResumeUrl(config: ResumeR2Config) {
   return `${config.publicBaseUrl.replace(/\/+$/, "")}/${buildResumeObjectKey(config)}`;
 }
 
+function toWebReadableStream(body: unknown) {
+  if (!body) {
+    throw new Error("Cloudflare R2 returned an empty response body.");
+  }
+
+  if (body instanceof ReadableStream) {
+    return body;
+  }
+
+  if (
+    typeof body === "object" &&
+    body !== null &&
+    "transformToWebStream" in body &&
+    typeof body.transformToWebStream === "function"
+  ) {
+    return body.transformToWebStream();
+  }
+
+  if (body instanceof Readable) {
+    return Readable.toWeb(body) as ReadableStream<Uint8Array>;
+  }
+
+  if (body instanceof Uint8Array) {
+    return new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(body);
+        controller.close();
+      },
+    });
+  }
+
+  throw new Error("Cloudflare R2 returned a response body that could not be streamed.");
+}
+
+export function isManagedResumeR2Url(downloadUrl: string) {
+  const config = getOptionalResumeR2Config();
+
+  if (!config) {
+    return false;
+  }
+
+  const objectKey = buildResumeObjectKey(config);
+
+  try {
+    const url = new URL(downloadUrl);
+    return url.pathname.replace(/^\/+/, "") === objectKey;
+  } catch {
+    return false;
+  }
+}
+
 export async function uploadResumePdfToR2(file: File) {
   const config = getResumeR2Config();
   const [{ PutObjectCommand }, client] = await Promise.all([
@@ -154,4 +216,28 @@ export async function deleteResumePdfFromR2() {
       Key: objectKey,
     }),
   );
+}
+
+export async function downloadResumePdfFromR2(): Promise<ResumeR2Download> {
+  const config = getResumeR2Config();
+  const [{ GetObjectCommand }, client] = await Promise.all([
+    getResumeR2Module(),
+    getResumeR2Client(config),
+  ]);
+  const objectKey = buildResumeObjectKey(config);
+  const response = await client.send(
+    new GetObjectCommand({
+      Bucket: config.bucketName,
+      Key: objectKey,
+    }),
+  );
+
+  return {
+    body: toWebReadableStream(response.Body),
+    contentLength: response.ContentLength ?? null,
+    contentType: response.ContentType ?? "application/pdf",
+    etag: response.ETag ?? null,
+    fileName: RESUME_STORAGE_FILE_NAME,
+    lastModified: response.LastModified?.toISOString() ?? null,
+  };
 }

@@ -1,6 +1,14 @@
 "use client";
 
-import { useMemo, useState, useEffect, useTransition, type ReactNode } from "react";
+import {
+  useMemo,
+  useState,
+  useEffect,
+  useRef,
+  useTransition,
+  type ChangeEvent,
+  type ReactNode,
+} from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,6 +31,7 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import type { Experience as ExperienceRecord, Education as EducationRecord, Certificate as CertificateRecord } from "@prisma/client";
+import { formatResumeFileSize } from "@/lib/resume.shared";
 import { adminDeleteExperience, adminSaveExperience, adminDeleteEducation, adminSaveEducation, adminDeleteCertificate, adminSaveCertificate } from "./resume.actions";
 
 import { ResumePagination } from "./resume-pagination";
@@ -52,10 +61,13 @@ type CertificateFormValues = {
   name: string;
   issuer: string;
   year: string;
-  verificationLink: string;
   credentialId: string;
   featured: boolean;
 };
+
+type CertificateFormErrors = Partial<
+  Record<keyof CertificateFormValues | "file", string>
+>;
 
 type FeedbackState = {
   title: string;
@@ -63,15 +75,8 @@ type FeedbackState = {
 } | null;
 
 const defaultCollectionPageSize = 3;
-
-
-function slugify(value: string) {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
+const certificateFileAccept =
+  "application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp";
 
 function toLines(value: string) {
   return value
@@ -80,12 +85,12 @@ function toLines(value: string) {
     .filter(Boolean);
 }
 
-function isValidUrl(value: string) {
+function getFileLabelFromUrl(value: string) {
   try {
-    new URL(value);
-    return true;
+    const url = new URL(value);
+    return decodeURIComponent(url.pathname.split("/").filter(Boolean).at(-1) ?? value);
   } catch {
-    return false;
+    return value;
   }
 }
 
@@ -132,7 +137,6 @@ function createCertificateFormValues(item?: CertificateRecord | null): Certifica
     name: item?.name ?? "",
     issuer: item?.issuer ?? "",
     year: item?.year ?? "",
-    verificationLink: item?.verificationLink ?? "",
     credentialId: item?.credentialId ?? "",
     featured: item?.featured ?? false,
   };
@@ -167,16 +171,18 @@ function validateEducation(values: EducationFormValues) {
   return errors;
 }
 
-function validateCertificate(values: CertificateFormValues) {
-  const errors: Partial<Record<keyof CertificateFormValues, string>> = {};
+function validateCertificate(values: CertificateFormValues, options: {
+  hasStoredFile: boolean;
+  selectedFile: File | null;
+}) {
+  const errors: CertificateFormErrors = {};
 
   if (!values.name.trim()) errors.name = "Certificate name is required.";
   if (!values.issuer.trim()) errors.issuer = "Issuer is required.";
   if (!values.year.trim()) errors.year = "Year is required.";
-  if (!values.verificationLink.trim()) {
-    errors.verificationLink = "Verification link is required.";
-  } else if (!isValidUrl(values.verificationLink)) {
-    errors.verificationLink = "Enter a valid URL.";
+
+  if (!options.hasStoredFile && !options.selectedFile) {
+    errors.file = "Certificate file is required.";
   }
 
   return errors;
@@ -283,7 +289,7 @@ type ExperienceManagerProps = { initialItems: ExperienceRecord[]; setFeedback: (
 
 function ExperienceManager({ initialItems, setFeedback }: ExperienceManagerProps) {
   const [items, setItems] = useState(initialItems);
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   useEffect(() => { setItems(initialItems); }, [initialItems]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -560,7 +566,7 @@ type EducationManagerProps = { initialItems: EducationRecord[]; setFeedback: (fe
 
 function EducationManager({ initialItems, setFeedback }: EducationManagerProps) {
   const [items, setItems] = useState(initialItems);
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   useEffect(() => { setItems(initialItems); }, [initialItems]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -821,8 +827,9 @@ type CertificatesManagerProps = { initialItems: CertificateRecord[]; setFeedback
 
 function CertificatesManager({ initialItems, setFeedback }: CertificatesManagerProps) {
   const [items, setItems] = useState(initialItems);
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   useEffect(() => { setItems(initialItems); }, [initialItems]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -834,9 +841,8 @@ function CertificatesManager({ initialItems, setFeedback }: CertificatesManagerP
   const [values, setValues] = useState<CertificateFormValues>(
     createCertificateFormValues(),
   );
-  const [errors, setErrors] = useState<
-    Partial<Record<keyof CertificateFormValues, string>>
-  >({});
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [errors, setErrors] = useState<CertificateFormErrors>({});
 
   const editingItem = useMemo(
     () => items.find((item) => item.id === editingId) ?? null,
@@ -869,6 +875,7 @@ function CertificatesManager({ initialItems, setFeedback }: CertificatesManagerP
   function openEditor(item?: CertificateRecord | null) {
     setEditingId(item?.id ?? null);
     setValues(createCertificateFormValues(item));
+    setSelectedFile(null);
     setErrors({});
     setOpen(true);
   }
@@ -877,11 +884,38 @@ function CertificatesManager({ initialItems, setFeedback }: CertificatesManagerP
     setOpen(false);
     setEditingId(null);
     setValues(createCertificateFormValues());
+    setSelectedFile(null);
     setErrors({});
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
+  function openFilePicker() {
+    fileInputRef.current?.click();
+  }
+
+  function clearSelectedFile() {
+    setSelectedFile(null);
+    setErrors((current) => ({ ...current, file: undefined }));
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    setSelectedFile(file);
+    setErrors((current) => ({ ...current, file: undefined }));
+    event.target.value = "";
   }
 
   function handleSubmit() {
-    const nextErrors = validateCertificate(values);
+    const nextErrors = validateCertificate(values, {
+      hasStoredFile: Boolean(editingItem?.verificationLink.trim()),
+      selectedFile,
+    });
     setErrors(nextErrors);
 
     if (Object.keys(nextErrors).length > 0) {
@@ -889,22 +923,29 @@ function CertificatesManager({ initialItems, setFeedback }: CertificatesManagerP
     }
 
     startTransition(async () => {
-      const result = await adminSaveCertificate({
-        id: editingItem?.id ?? undefined,
-        name: values.name.trim(),
-        issuer: values.issuer.trim(),
-        year: values.year.trim(),
-        verificationLink: values.verificationLink.trim(),
-        credentialId: values.credentialId?.trim() || undefined,
-        featured: values.featured,
-        sortOrder: editingItem?.sortOrder ?? 0,
-      });
+      const formData = new FormData();
+      formData.set("name", values.name.trim());
+      formData.set("issuer", values.issuer.trim());
+      formData.set("year", values.year.trim());
+      formData.set("credentialId", values.credentialId.trim());
+      formData.set("featured", String(values.featured));
+      formData.set("sortOrder", String(editingItem?.sortOrder ?? 0));
+
+      if (editingItem?.id) {
+        formData.set("id", editingItem.id);
+      }
+
+      if (selectedFile) {
+        formData.set("file", selectedFile);
+      }
+
+      const result = await adminSaveCertificate(formData);
 
       if (result.ok) {
         setFeedback({ title: editingItem ? "Certificate updated" : "Certificate added", detail: result.message });
         closeEditor();
       } else {
-        setErrors({ verificationLink: result.message });
+        setErrors((current) => ({ ...current, file: result.message }));
       }
     });
   }
@@ -985,7 +1026,7 @@ function CertificatesManager({ initialItems, setFeedback }: CertificatesManagerP
             setSearchQuery(value);
             setCurrentPage(1);
           }}
-          placeholder="Search certificate, issuer, year, or credential..."
+          placeholder="Search certificate, issuer, year, file, or credential..."
           resultSummary={resultSummary}
           searchValue={searchQuery}
         />
@@ -1040,9 +1081,19 @@ function CertificatesManager({ initialItems, setFeedback }: CertificatesManagerP
                     </div>
                   </div>
                   <div className="grid gap-3">
-                    <p className="text-sm leading-7 text-ink/78">
-                      Verification link: {item.verificationLink}
-                    </p>
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink/62">
+                        Stored file
+                      </p>
+                      <a
+                        href={item.verificationLink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="break-all text-sm leading-7 text-accent-blue underline decoration-[2px] underline-offset-4"
+                      >
+                        {getFileLabelFromUrl(item.verificationLink)}
+                      </a>
+                    </div>
                     {item.credentialId ? (
                       <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink/62">
                         Credential ID: {item.credentialId}
@@ -1070,14 +1121,24 @@ function CertificatesManager({ initialItems, setFeedback }: CertificatesManagerP
           />
         ) : null}
 
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog
+          open={open}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) {
+              closeEditor();
+              return;
+            }
+
+            setOpen(true);
+          }}
+        >
           <DialogContent className="max-w-4xl">
             <DialogHeader>
               <DialogTitle>
                 {editingItem ? "Edit certificate" : "Add certificate"}
               </DialogTitle>
               <DialogDescription>
-                Manage certification details for the resume workspace with local actions.
+                Manage certificate metadata and upload the file to Cloudflare R2.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 md:grid-cols-2">
@@ -1117,17 +1178,89 @@ function CertificatesManager({ initialItems, setFeedback }: CertificatesManagerP
                 />
               </Field>
             </div>
-            <Field label="Verification link" error={errors.verificationLink}>
-              <Input
-                value={values.verificationLink}
-                onChange={(event) =>
-                  setValues((current) => ({
-                    ...current,
-                    verificationLink: event.target.value,
-                  }))
-                }
-              />
-            </Field>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={certificateFileAccept}
+              className="hidden"
+              onChange={handleFileChange}
+            />
+            <div className="rounded-[22px] border-[3px] border-ink bg-white/75 px-4 py-4 shadow-[5px_5px_0_var(--ink)]">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold uppercase tracking-[0.16em] text-ink/72">
+                    Certificate file
+                  </p>
+                  <p className="text-sm leading-6 text-ink/62">
+                    Upload a PDF or image file. Every new upload is stored in the
+                    Cloudflare R2 folder <span className="font-semibold text-ink">certificate/</span>.
+                  </p>
+                </div>
+                <div className="rounded-[18px] border-[2px] border-dashed border-ink/35 bg-panel/60 px-4 py-4">
+                  {selectedFile ? (
+                    <div className="space-y-2">
+                      <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink/70">
+                        Pending upload
+                      </p>
+                      <p className="text-sm leading-7 text-ink/78">
+                        {selectedFile.name}
+                        <br />
+                        {formatResumeFileSize(selectedFile.size)}
+                      </p>
+                    </div>
+                  ) : editingItem?.verificationLink ? (
+                    <div className="space-y-2">
+                      <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink/70">
+                        Current file
+                      </p>
+                      <a
+                        href={editingItem.verificationLink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="break-all text-sm leading-7 text-accent-blue underline decoration-[2px] underline-offset-4"
+                      >
+                        {getFileLabelFromUrl(editingItem.verificationLink)}
+                      </a>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink/70">
+                        No file selected yet
+                      </p>
+                      <p className="text-sm leading-7 text-ink/72">
+                        Choose the certificate document before saving this record.
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <Button type="button" variant="blue" onClick={openFilePicker}>
+                    {selectedFile
+                      ? "Replace Pending File"
+                      : editingItem?.verificationLink
+                        ? "Replace File"
+                        : "Choose File"}
+                  </Button>
+                  {selectedFile ? (
+                    <Button type="button" variant="muted" onClick={clearSelectedFile}>
+                      Clear Selection
+                    </Button>
+                  ) : null}
+                  {editingItem?.verificationLink ? (
+                    <Button asChild variant="muted">
+                      <a href={editingItem.verificationLink} target="_blank" rel="noreferrer">
+                        Open Current File
+                      </a>
+                    </Button>
+                  ) : null}
+                </div>
+                {errors.file ? (
+                  <p className="text-sm font-semibold leading-6 text-accent-red">
+                    {errors.file}
+                  </p>
+                ) : null}
+              </div>
+            </div>
             <div className="rounded-[22px] border-[3px] border-ink bg-white/75 px-4 py-4 shadow-[5px_5px_0_var(--ink)]">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="space-y-2">
@@ -1150,7 +1283,7 @@ function CertificatesManager({ initialItems, setFeedback }: CertificatesManagerP
               </div>
             </div>
             <DialogFooter>
-              <DialogClose>Cancel</DialogClose>
+              <DialogClose onClick={closeEditor}>Cancel</DialogClose>
               <Button type="button" variant="blue" onClick={handleSubmit}>
                 {editingItem ? "Save Certificate" : "Add Certificate"}
               </Button>

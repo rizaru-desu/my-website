@@ -236,9 +236,9 @@ export function SkillList({
                     {groupedSkills[category]?.map((skill) => (
                       <Card key={skill.id} className="bg-white/75">
                         <CardContent className="space-y-4">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="space-y-2">
-                              <p className="font-display text-3xl uppercase leading-none text-ink">
+                          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0 flex-1 space-y-2">
+                              <p className="font-display text-[2.4rem] uppercase leading-[0.92] text-ink wrap-anywhere sm:text-3xl">
                                 {skill.values.name}
                               </p>
                               <div className="flex flex-wrap gap-2">
@@ -259,7 +259,11 @@ export function SkillList({
                               </div>
                             </div>
                             <DropdownMenu>
-                              <DropdownMenuTrigger size="sm" variant="muted">
+                              <DropdownMenuTrigger
+                                size="sm"
+                                variant="muted"
+                                className="shrink-0 self-start"
+                              >
                                 Actions
                               </DropdownMenuTrigger>
                               <DropdownMenuContent>

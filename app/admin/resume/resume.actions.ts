@@ -3,6 +3,10 @@
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import {
+  deleteManagedFileFromR2ByUrl,
+  uploadCertificateFileToR2,
+} from "@/lib/cloudflare-r2";
 import { prisma } from "@/lib/prisma";
 import { getAdminResumeContext } from "@/lib/resume";
 
@@ -128,29 +132,133 @@ export async function adminDeleteEducation(id: string) {
   }
 }
 
-const certificateSchema = z.object({
+const certificateMetadataSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(1, "Name is required"),
   issuer: z.string().min(1, "Issuer is required"),
   year: z.string().min(1, "Year is required"),
-  verificationLink: z.string().min(1, "Verification link is required").url("Must be a valid URL"),
   credentialId: z.string().optional(),
   featured: z.boolean().default(false),
   sortOrder: z.number().default(0),
 });
 
-export async function adminSaveCertificate(input: z.infer<typeof certificateSchema>) {
+const MAX_CERTIFICATE_FILE_BYTES = 10 * 1024 * 1024;
+const allowedCertificateMimeTypes = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
+const allowedCertificateExtensions = new Set(["pdf", "jpg", "jpeg", "png", "webp"]);
+
+function normalizeOptionalString(value: FormDataEntryValue | null) {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed || undefined;
+}
+
+function parseCheckboxValue(value: FormDataEntryValue | null) {
+  return value === "true";
+}
+
+function parseSortOrderValue(value: FormDataEntryValue | null) {
+  if (typeof value !== "string") {
+    return 0;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function getCertificateUploadValidationError(file: File) {
+  if (file.size <= 0) {
+    return "Choose a certificate file before uploading.";
+  }
+
+  if (file.size > MAX_CERTIFICATE_FILE_BYTES) {
+    return "Keep the certificate file under 10MB before uploading.";
+  }
+
+  const normalizedType = file.type.trim().toLowerCase();
+  const extension = file.name.trim().toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] ?? "";
+
+  if (
+    normalizedType &&
+    !allowedCertificateMimeTypes.has(normalizedType) &&
+    !allowedCertificateExtensions.has(extension)
+  ) {
+    return "Upload a PDF, PNG, JPG, or WEBP certificate file.";
+  }
+
+  if (!normalizedType && !allowedCertificateExtensions.has(extension)) {
+    return "Upload a PDF, PNG, JPG, or WEBP certificate file.";
+  }
+
+  return null;
+}
+
+export async function adminSaveCertificate(formData: FormData) {
+  let uploadedFileUrl: string | null = null;
+
   try {
     const requestHeaders = await headers();
     await getAdminResumeContext(requestHeaders);
 
-    const values = certificateSchema.parse(input);
+    const values = certificateMetadataSchema.parse({
+      credentialId: normalizeOptionalString(formData.get("credentialId")),
+      featured: parseCheckboxValue(formData.get("featured")),
+      id: normalizeOptionalString(formData.get("id")),
+      issuer: normalizeOptionalString(formData.get("issuer")) ?? "",
+      name: normalizeOptionalString(formData.get("name")) ?? "",
+      sortOrder: parseSortOrderValue(formData.get("sortOrder")),
+      year: normalizeOptionalString(formData.get("year")) ?? "",
+    });
+    const existingCertificate = values.id
+      ? await prisma.certificate.findUnique({ where: { id: values.id } })
+      : null;
+    const fileEntry = formData.get("file");
+    const uploadFile =
+      fileEntry instanceof File && fileEntry.size > 0 ? fileEntry : null;
+
+    if (values.id && !existingCertificate) {
+      return { ok: false, message: "Certificate record was not found." };
+    }
+
+    if (!existingCertificate && !uploadFile) {
+      return { ok: false, message: "Upload a certificate file before saving." };
+    }
+
+    if (uploadFile) {
+      const validationError = getCertificateUploadValidationError(uploadFile);
+
+      if (validationError) {
+        return { ok: false, message: validationError };
+      }
+    }
+
+    if (uploadFile) {
+      const uploadedAsset = await uploadCertificateFileToR2(uploadFile);
+      uploadedFileUrl = uploadedAsset.publicUrl;
+    }
+
+    const verificationLink =
+      uploadedFileUrl ?? existingCertificate?.verificationLink ?? "";
+
+    if (!verificationLink) {
+      return {
+        ok: false,
+        message: "Upload a certificate file before saving this record.",
+      };
+    }
 
     const data = {
       name: values.name,
       issuer: values.issuer,
       year: values.year,
-      verificationLink: values.verificationLink,
+      verificationLink,
       credentialId: values.credentialId || null,
       featured: values.featured,
       sortOrder: values.sortOrder,
@@ -167,10 +275,42 @@ export async function adminSaveCertificate(input: z.infer<typeof certificateSche
       });
     }
 
+    let cleanupWarning: string | null = null;
+
+    if (
+      uploadedFileUrl &&
+      existingCertificate?.verificationLink &&
+      existingCertificate.verificationLink !== uploadedFileUrl
+    ) {
+      try {
+        await deleteManagedFileFromR2ByUrl(existingCertificate.verificationLink);
+      } catch (error) {
+        cleanupWarning =
+          error instanceof Error
+            ? error.message
+            : "Remote certificate cleanup could not be completed.";
+      }
+    }
+
     revalidatePath("/admin/resume");
     revalidatePath("/resume");
-    return { ok: true, message: "Certificate saved successfully." };
+    return {
+      ok: true,
+      message: cleanupWarning
+        ? `Certificate saved, but the previous file still needs cleanup: ${cleanupWarning}`
+        : uploadedFileUrl
+          ? "Certificate saved and uploaded to Cloudflare R2 successfully."
+          : "Certificate saved successfully.",
+    };
   } catch (error) {
+    if (uploadedFileUrl) {
+      try {
+        await deleteManagedFileFromR2ByUrl(uploadedFileUrl);
+      } catch {
+        // Ignore upload rollback failures and return the original error.
+      }
+    }
+
     return { ok: false, message: error instanceof Error ? error.message : "Failed to save certificate." };
   }
 }
@@ -180,11 +320,33 @@ export async function adminDeleteCertificate(id: string) {
     const requestHeaders = await headers();
     await getAdminResumeContext(requestHeaders);
 
+    const existingCertificate = await prisma.certificate.findUnique({ where: { id } });
+
+    if (!existingCertificate) {
+      return { ok: false, message: "Certificate record was not found." };
+    }
+
     await prisma.certificate.delete({ where: { id } });
+
+    let cleanupWarning: string | null = null;
+
+    try {
+      await deleteManagedFileFromR2ByUrl(existingCertificate.verificationLink);
+    } catch (error) {
+      cleanupWarning =
+        error instanceof Error
+          ? error.message
+          : "Remote certificate cleanup could not be completed.";
+    }
 
     revalidatePath("/admin/resume");
     revalidatePath("/resume");
-    return { ok: true, message: "Certificate deleted successfully." };
+    return {
+      ok: true,
+      message: cleanupWarning
+        ? `Certificate deleted, but remote file cleanup needs attention: ${cleanupWarning}`
+        : "Certificate deleted successfully.",
+    };
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : "Failed to delete certificate." };
   }

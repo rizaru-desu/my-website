@@ -122,7 +122,7 @@ These are not required to boot the app locally, but they enable production-facin
 - `GOOGLE_SMTP_USER`, `GOOGLE_APP_PASSWORD`, `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME` for email delivery.
 - `REDIS_URL`, `ANALYTICS_HASH_SALT`, `COMMENT_HASH_SALT` for Redis-backed analytics and comment controls.
 - `RESUME_DOWNLOAD_URL` for the public CV download target.
-- `CLOUDFLARE_R2_ACCOUNT_ID`, `CLOUDFLARE_R2_ACCESS_KEY_ID`, `CLOUDFLARE_R2_SECRET_ACCESS_KEY`, `CLOUDFLARE_R2_BUCKET_NAME`, `CLOUDFLARE_R2_PUBLIC_URL`, `CLOUDFLARE_R2_RESUME_PREFIX` for admin resume PDF uploads to Cloudflare R2. Set the prefix to a folder path such as `confidential-document/` or `personalbucket/confidential-document/`.
+- `CLOUDFLARE_R2_ACCOUNT_ID`, `CLOUDFLARE_R2_ACCESS_KEY_ID`, `CLOUDFLARE_R2_SECRET_ACCESS_KEY`, `CLOUDFLARE_R2_BUCKET_NAME`, `CLOUDFLARE_R2_PUBLIC_URL`, `CLOUDFLARE_R2_RESUME_PREFIX`, and optional `CLOUDFLARE_R2_CERTIFICATE_PREFIX` for admin resume PDF uploads plus certificate file uploads to Cloudflare R2. Set the resume prefix to a folder path such as `confidential-document/` or `personalbucket/confidential-document/`; certificate uploads default to `certificate/`.
 - `NEXT_PUBLIC_APP_VERSION`, `NEXT_PUBLIC_GIT_SHA`, `NEXT_PUBLIC_BUILD_TIMESTAMP`, `RELEASE_VERSION`, `BUILD_TIMESTAMP` for build metadata.
 
 If mailer config is missing, email flows fall back to server logging instead of failing the request.

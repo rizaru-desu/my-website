@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { BlogCard } from "@/components/blog-card";
 import { ContactSection } from "@/components/contact-section";
+import { HomeMigrationNotice } from "@/components/home-migration-notice";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { ProjectCard } from "@/components/project-card";
 import { TestimonialCarousel } from "@/components/testimonial-carousel";
@@ -54,6 +55,8 @@ export default async function Home() {
   return (
     <div className="px-4 pb-6 pt-8 sm:px-6 sm:pt-10">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-16">
+        <HomeMigrationNotice />
+
         <section className="relative overflow-hidden rounded-[36px] border-[3px] border-ink bg-panel px-6 py-10 shadow-[10px_10px_0_var(--ink)] sm:px-8 lg:px-10 lg:py-12">
           <div className="hero-shadow hidden lg:block" />
           <div className="accent-plate left-8 top-8 hidden h-16 w-16 -rotate-6 rounded-[22px] bg-accent-red lg:block" />

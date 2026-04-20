@@ -4,6 +4,15 @@ A personal portfolio and editorial admin workspace built with Next.js 16, React 
 
 This codebase is in its final product shape. Public content and admin-managed content are backed by real persisted Prisma models in PostgreSQL, and the app no longer depends on `lib/mock-content.ts`.
 
+## Migration Notice
+
+This repository is being used as the reference implementation for an upcoming migration to a Go + Vite stack targeted at STB TV devices running Armbian.
+
+- The current Next.js app remains the source of truth for content structure, public/admin flows, and visual behavior.
+- The migration goal is to keep the same product model while moving to a lighter runtime profile that better fits the target device environment.
+- Planned migration repository: `https://github.com/rizaru-desu/my-website-turbo-repo`
+- Homepage messaging now includes an in-app migration notice so the transition is visible from both the UI and the project documentation.
+
 ## Overview
 
 The project combines two surfaces in one codebase:

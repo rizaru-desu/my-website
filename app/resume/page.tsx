@@ -8,18 +8,23 @@ import { PageHero } from "@/components/ui/page-hero";
 import { SectionShell } from "@/components/ui/section-shell";
 import { getPublicProfileContent } from "@/lib/profile";
 import { getPublicSkills } from "@/lib/skills";
-import { getPublicExperiences, getPublicEducation } from "@/lib/resume";
+import {
+  getPublicCertificates,
+  getPublicEducation,
+  getPublicExperiences,
+} from "@/lib/resume";
 
 export const revalidate = 300;
 
 export const dynamic = "force-dynamic";
 
 export default async function ResumePage() {
-  const [profile, skills, experiences, education] = await Promise.all([
+  const [profile, skills, experiences, education, certificates] = await Promise.all([
     getPublicProfileContent(),
     getPublicSkills(),
     getPublicExperiences(),
     getPublicEducation(),
+    getPublicCertificates(),
   ]);
   const groupedSkills = Array.from(
     skills.reduce((map, skill) => {
@@ -210,6 +215,56 @@ export default async function ResumePage() {
             ))}
           </SectionShell>
         </section>
+
+        {certificates.length > 0 ? (
+          <SectionShell
+            label="Certificates"
+            title="Credentials with direct verification links."
+            contentClassName="grid gap-6 md:grid-cols-2 xl:grid-cols-3"
+          >
+            {certificates.map((item, index) => (
+              <EditorialCard
+                key={item.id}
+                accent={index % 3 === 0 ? "red" : index % 3 === 1 ? "blue" : "cream"}
+                className="space-y-4"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold uppercase tracking-[0.22em] text-ink/60">
+                      {item.year}
+                    </p>
+                    <h3 className="font-display text-3xl uppercase leading-none text-ink">
+                      {item.name}
+                    </h3>
+                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-ink/65">
+                      {item.issuer}
+                    </p>
+                  </div>
+                  {item.featured ? <Badge variant="red">Featured</Badge> : null}
+                </div>
+
+                {item.credentialId ? (
+                  <p className="text-sm leading-7 text-ink/80">
+                    Credential ID: <span className="font-semibold text-ink">{item.credentialId}</span>
+                  </p>
+                ) : (
+                  <p className="text-sm leading-7 text-ink/72">
+                    Verification file is available directly from the public credential archive.
+                  </p>
+                )}
+
+                <a
+                  href={item.verificationLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="button-link button-link-blue inline-flex"
+                >
+                  Open Certificate
+                </a>
+              </EditorialCard>
+            ))}
+          </SectionShell>
+        ) : null}
       </div>
     </div>
   );
